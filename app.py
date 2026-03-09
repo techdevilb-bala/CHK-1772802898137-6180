@@ -1,22 +1,15 @@
 import pandas as pd
 from datetime import datetime
-import time
-
 import streamlit as st
 import cv2
 from ultralytics import YOLO
-import google.generativeai as genai
+import time
 import os
-from dotenv import load_dotenv
 
 # --- Team Modules Import ---
 from report_gen import create_safety_report
 from safety_math import check_proximity_violations
-
-# 1. Setup Gemini API
-load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+from ai_brain import get_smart_alert  # 🧠 3-Tier Master Brain
 
 st.set_page_config(page_title="Smart Crowd Intelligence", layout="wide")
 st.title("🛡️ Smart Crowd Intelligence & AI Alerts")
@@ -54,14 +47,16 @@ if run_camera:
     cap = cv2.VideoCapture(0)
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret: break
+        if not ret: 
+            st.error("Camera access failed!")
+            break
         
         # AI Detection
         results = model(frame, classes=[0], conf=0.5, verbose=False)
         current_count = len(results[0].boxes)
         
-        # --- NEW: Proximity Math ---
-        boxes = results[0].boxes.xyxy.cpu().numpy() # Get raw coordinates
+        # Proximity Math
+        boxes = results[0].boxes.xyxy.cpu().numpy()
         risky_people = check_proximity_violations(boxes, distance_threshold=150)
         
         # Update chart data
@@ -77,36 +72,44 @@ if run_camera:
         count_metric.metric("Total People", current_count)
         risk_metric.metric("⚠️ High Risk", risky_people)
 
-        # Gemini AI Alert
-       # --- NEW: Gemini AI Alert with Cooldown (Speed Fix) ---
+        # ---------------------------------------------------------
+        # 🧠 3-Tier AI Brain Integration (With 15s Cooldown)
+        # ---------------------------------------------------------
         if 'last_alert_time' not in st.session_state:
             st.session_state.last_alert_time = 0
 
         current_time_sec = time.time()
         
         if current_count > threshold or risky_people > 2:
-            # १५ सेकंदांचा Cooldown (म्हणजे AI सारखा सारखा कॉल होणार नाही)
+            # 15 seconds cooldown
             if (current_time_sec - st.session_state.last_alert_time) > 15:
-                prompt = f"Crowd count: {current_count}. People standing too close: {risky_people}. Give a short urgent safety warning in Marathi and English."
-                try:
-                    response = gemini_model.generate_content(prompt)
-                    st.session_state.last_alert_msg = response.text
-                    st.session_state.last_alert_time = current_time_sec
-                except Exception as e:
-                    st.session_state.last_alert_msg = "AI system busy... Please wait."
+                msg, status = get_smart_alert(current_count, threshold, risky_people)
+                
+                st.session_state.last_alert_msg = msg
+                st.session_state.last_alert_status = status
+                st.session_state.last_alert_time = current_time_sec
             
-            # Show the saved alert message without slowing down the camera
+            # Show the saved alert message
             if 'last_alert_msg' in st.session_state:
-                alert_placeholder.error(f"🚨 AI ALERT:\n{st.session_state.last_alert_msg}")
+                if st.session_state.last_alert_status == "danger":
+                    alert_placeholder.error(st.session_state.last_alert_msg)
+                else:
+                    alert_placeholder.warning(st.session_state.last_alert_msg)
         else:
-            alert_placeholder.success("Crowd is within safe limits. Proper distancing maintained.")
-## --- NEW: PDF Report Generator (Safe Mode) ---
+            alert_placeholder.success("✅ Crowd is within safe limits. Proper distancing maintained.")
+        # ---------------------------------------------------------
+
+        if not run_camera: 
+            break
+    
+    cap.release()
+
+# --- NEW: PDF Report Generator (Safe Mode) ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("📄 Daily Safety Report")
 
-# Rule: Camera must be off to generate report safely
 if run_camera:
-    st.sidebar.warning("⚠️ Please turn OFF 'Start Surveillance' to download the report.")
+    st.sidebar.warning("⚠️ Turn OFF 'Start Surveillance' to download the report.")
 else:
     if st.sidebar.button("1. Generate Report"):
         try:
