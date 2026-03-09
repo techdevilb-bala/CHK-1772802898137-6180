@@ -2,6 +2,8 @@ import cv2
 from ultralytics import YOLO
 from flask import Flask, Response
 import datetime
+import streamlit as st
+st.title("Crowd Intelligence: Team of 2 🚀")
 
 # -------------------------
 # Load YOLO Model
