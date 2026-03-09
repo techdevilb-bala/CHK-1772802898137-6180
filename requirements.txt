@@ -1,0 +1,6 @@
+ultralytics
+streamlit
+google-generativeai
+python-dotenv
+opencv-python
+gTTS
