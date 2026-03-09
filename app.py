@@ -1,3 +1,4 @@
+from report_gen import create_safety_report
 import pandas as pd
 from datetime import datetime
 import streamlit as st
@@ -26,6 +27,23 @@ model = YOLO('models/yolov8n.pt')
 
 # Sidebar Configuration
 threshold = st.sidebar.slider("Crowd Limit", 5, 50, 10)
+# --- PDF Report Integration ---
+st.sidebar.markdown("---")
+if st.sidebar.button("📄 Generate Daily Report"):
+    # Calculate peak crowd from your session history
+    peak_crowd = int(st.session_state.history['Count'].max()) if not st.session_state.history.empty else 0
+    
+    # Generate the PDF using your friend's function
+    pdf_filename = create_safety_report(max_crowd=peak_crowd, alerts_triggered=3)
+    
+    # Provide the download link
+    with open(pdf_filename, "rb") as pdf_file:
+        st.sidebar.download_button(
+            label="⬇️ Download PDF Now",
+            data=pdf_file,
+            file_name=pdf_filename,
+            mime="application/pdf"
+        )
 run_camera = st.sidebar.toggle("Start Surveillance")
 frame_placeholder = st.empty()
 alert_placeholder = st.empty()

@@ -11,7 +11,7 @@ def create_safety_report(max_crowd, alerts_triggered):
     
     # 1. Header
     pdf.set_font("Arial", style="B", size=16)
-    pdf.cell(200, 10, txt="🛡️ Smart Crowd Intelligence", ln=True, align='C')
+    pdf.cell(200, 10, txt=" Smart Crowd Intelligence", ln=True, align='C')
     pdf.set_font("Arial", style="B", size=14)
     pdf.cell(200, 10, txt="Daily Safety & Incident Report", ln=True, align='C')
     pdf.ln(10) # Line break
@@ -42,4 +42,4 @@ def create_safety_report(max_crowd, alerts_triggered):
 # Note: This block is just for your friend to test if the file works locally.
 if __name__ == "__main__":
     test_file = create_safety_report(max_crowd=45, alerts_triggered=3)
-    print(f"✅ Success! Report saved as: {test_file}")
+    print(f"Success! Report saved as: {test_file}")
