@@ -1,39 +1,43 @@
+import pandas as pd
 import numpy as np
 
 def get_crowd_prediction(history_df):
     """
-    Uses Linear Regression to predict future crowd size based on recent history.
+    Analyzes the recent crowd history to predict the immediate trend.
+    Uses Moving Averages to determine if the crowd is growing or shrinking.
     """
-    # We need at least 10 data points to find a trend
-    if len(history_df) < 10:
-        return "Gathering data..."
+    # जर डेटा खूप कमी असेल, तर सिस्टिमला थोडा वेळ द्या
+    if history_df is None or len(history_df) < 6:
+        return "Gathering Data ⏳"
         
-    # Get the crowd counts as Y-axis, and time steps as X-axis
-   # Get the crowd counts as Y-axis, and time steps as X-axis
-    y = np.array(history_df['Count'].values, dtype=float)  # 🟢 FIX: Convert to Float
-    x = np.arange(len(y))
+    # 'Count' कॉलमचा डेटा घ्या
+    counts = history_df['Count'].tolist()
     
-    # Apply Linear Regression (y = mx + c)
-    # slope (m) tells us if crowd is increasing or decreasing
-    slope, intercept = np.polyfit(x, y, 1)
+    # जुना डेटा आणि नवीन डेटा यांची सरासरी (Average) काढा
+    mid = len(counts) // 2
+    older_avg = np.mean(counts[:mid])
+    recent_avg = np.mean(counts[mid:])
     
-    # Predict crowd size for the next 15 time steps
-    future_x = len(y) + 15
-    predicted_crowd = int((slope * future_x) + intercept)
+    # गर्दी वाढण्याचा किंवा कमी होण्याचा वेग (Rate of Change)
+    diff = recent_avg - older_avg
     
-    # Crowd cannot be negative
-    predicted_crowd = max(0, predicted_crowd)
-    
-    # Determine the trend status
-    if slope > 0.3:
-        return f"📈 Rising! Next: ~{predicted_crowd}"
-    elif slope < -0.3:
-        return f"📉 Clearing. Next: ~{predicted_crowd}"
+    # लॉजिक: डॅशबोर्डवर दाखवण्यासाठी अचूक दिशा
+    if diff > 2.5:
+        return "Rising Quickly 📈"
+    elif diff > 0.5:
+        return "Slowly Increasing ↗️"
+    elif diff < -2.5:
+        return "Clearing Fast 📉"
+    elif diff < -0.5:
+        return "Slowly Decreasing ↘️"
     else:
-        return f"➡️ Stable. Next: ~{predicted_crowd}"
+        return "Stable ➡️"
 
 # Local Testing
 if __name__ == "__main__":
-    import pandas as pd
-    dummy_data = pd.DataFrame({'Count': [5, 6, 8, 10, 12, 15, 18, 20, 22, 25]})
-    print("Prediction Test:", get_crowd_prediction(dummy_data))
+    print("Testing Predictor Module...")
+    # डमी डेटा: गर्दी 10 वरून 25 पर्यंत वाढत आहे
+    dummy_data = pd.DataFrame({'Count': [10, 12, 15, 18, 22, 25]})
+    prediction = get_crowd_prediction(dummy_data)
+    print(f"Data: {dummy_data['Count'].tolist()}")
+    print(f"AI Prediction: {prediction}")
