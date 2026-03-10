@@ -1,5 +1,7 @@
+import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
+from whatsapp_alert import send_whatsapp_alert
 import streamlit as st
 import cv2
 from ultralytics import YOLO
@@ -84,7 +86,41 @@ if run_camera:
     cap2 = cv2.VideoCapture(phone_ip)  
     
     frame_counter = 0 # 🟢 Lag Fix Counter
+    # --- 📊 NEW: Generative Dynamic Risk Chart ---
+def create_dynamic_chart(history_df, threshold):
+    fig = go.Figure()
     
+    # मुख्य लाईव्ह ट्रेंड लाईन (Neon Cyan)
+    fig.add_trace(go.Scatter(
+        x=history_df['Time'], 
+        y=history_df['Count'],
+        mode='lines+markers',
+        name='Crowd Count',
+        line=dict(color='#00F0FF', width=3, shape='spline'), # Spline मुळे ग्राफ एकदम स्मूथ दिसेल
+        marker=dict(size=8, color='#7000FF', symbol='glow-dot'),
+        fill='tozeroy', # लाईनच्या खाली रंग भरेल
+        fillcolor='rgba(0, 240, 255, 0.1)'
+    ))
+    
+    # 🟡 Yellow Zone (Warning Line) - धोक्याची चाहूल
+    warning_level = int(threshold * 0.7) # 70% गर्दी झाली की पिवळा झोन
+    fig.add_hline(y=warning_level, line_dash="dash", line_color="#FFFF00", 
+                  annotation_text="🟡 Warning Zone", annotation_font_color="#FFFF00")
+    
+    # 🔴 Red Zone (Danger Line) - थेट धोका
+    fig.add_hline(y=threshold, line_dash="dash", line_color="#FF2A2A", 
+                  annotation_text="🔴 Danger Zone", annotation_font_color="#FF2A2A")
+    
+    # ग्राफची सायबरपंक डिझाईन (Transparent Background)
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#E0E0E0', family="Rajdhani"),
+        margin=dict(l=0, r=0, t=30, b=0),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='rgba(255, 255, 255, 0.1)', range=[0, max(threshold + 5, history_df['Count'].max() + 5)])
+    )
+    return fig
     while cap1.isOpened() and cap2.isOpened():
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
@@ -130,7 +166,11 @@ if run_camera:
         now = datetime.now().strftime("%H:%M:%S")
         new_row = pd.DataFrame({'Time': [now], 'Count': [current_count]})
         st.session_state.history = pd.concat([st.session_state.history, new_row]).tail(20)
-        chart_placeholder.line_chart(st.session_state.history.set_index('Time'))
+        
+        # 🟢 NEW: Update the advanced Plotly chart (दर ५ फ्रेम नंतर अपडेट करू म्हणजे लॅग होणार नाही)
+        if frame_counter % 5 == 0:
+            fig = create_dynamic_chart(st.session_state.history, threshold)
+            chart_placeholder.plotly_chart(fig, use_container_width=True)
         
         # AI Brain Alerts & Voice
         if 'last_alert_time' not in st.session_state:
