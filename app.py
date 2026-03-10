@@ -11,6 +11,7 @@ from report_gen import create_safety_report
 from safety_math import check_proximity_violations
 from predictor import get_crowd_prediction
 from ai_brain import get_smart_alert
+from voice_alert import speak_warning  # 🔊 Voice Alert Module
 
 # 1. Page Config & Cyberpunk UI
 st.set_page_config(page_title="Smart Crowd Intelligence", layout="wide", initial_sidebar_state="expanded")
@@ -82,6 +83,8 @@ if run_camera:
     cap1 = cv2.VideoCapture(0)         
     cap2 = cv2.VideoCapture(phone_ip)  
     
+    frame_counter = 0 # 🟢 Lag Fix Counter
+    
     while cap1.isOpened() and cap2.isOpened():
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
@@ -89,18 +92,25 @@ if run_camera:
         if not ret1 or not ret2: 
             st.error("⚠️ Connection Lost! Please check WiFi or Camera.")
             break
+            
+        frame_counter += 1
         
-        # 🟢 FIX: Resize both frames so they fit perfectly and don't cut
+        # 🟢 FIX: Process only every 3rd frame to stop LAG!
+        if frame_counter % 3 != 0:
+            continue
+        
+        # 🟢 FIX: Resize both frames so they fit perfectly
         frame1 = cv2.resize(frame1, (640, 480))
         frame2 = cv2.resize(frame2, (640, 480))
             
+        # 🟢 ULTIMATE SPEED FIX: imgsz=320 
         # Cam 1 Processing
-        res1 = model(frame1, classes=[0], conf=0.5, verbose=False)
+        res1 = model(frame1, classes=[0], conf=0.5, imgsz=320, verbose=False)
         count1 = len(res1[0].boxes)
         cam1_placeholder.image(res1[0].plot(), channels="BGR")
         
         # Cam 2 Processing
-        res2 = model(frame2, classes=[0], conf=0.5, verbose=False)
+        res2 = model(frame2, classes=[0], conf=0.5, imgsz=320, verbose=False)
         count2 = len(res2[0].boxes)
         cam2_placeholder.image(res2[0].plot(), channels="BGR")
         
@@ -122,7 +132,7 @@ if run_camera:
         st.session_state.history = pd.concat([st.session_state.history, new_row]).tail(20)
         chart_placeholder.line_chart(st.session_state.history.set_index('Time'))
         
-        # AI Brain Alerts
+        # AI Brain Alerts & Voice
         if 'last_alert_time' not in st.session_state:
             st.session_state.last_alert_time = 0
 
@@ -134,6 +144,12 @@ if run_camera:
                 st.session_state.last_alert_msg = msg
                 st.session_state.last_alert_status = status
                 st.session_state.last_alert_time = current_time_sec
+                
+                # 🔊 NEW: Marathi Audio Warning
+                if status == "danger":
+                    speak_warning("Attention! Krupaya laksha dya. Gardi limit peksha jaast zali aahe. Krupaya surakshit antar theva.")
+                else:
+                    speak_warning("Alert. Gardi vaadhat aahe. Krupaya niyam che palan kara.")
             
             if 'last_alert_msg' in st.session_state:
                 if st.session_state.last_alert_status == "danger":
@@ -148,3 +164,28 @@ if run_camera:
             
     cap1.release()
     cap2.release()
+
+# ---------------------------------------------------------
+# 7. 📄 PDF Safety Report Generator (Sidebar)
+# ---------------------------------------------------------
+st.sidebar.markdown("---")
+st.sidebar.markdown("<h3 style='color:#00FFCC;'>📄 Safety Report</h3>", unsafe_allow_html=True)
+
+if run_camera:
+    st.sidebar.warning("⚠️ Turn OFF 'Start Surveillance' to download the report.")
+else:
+    if st.sidebar.button("⚙️ Generate PDF Report"):
+        try:
+            peak_crowd = int(st.session_state.history['Count'].max()) if not st.session_state.history.empty else 0
+            pdf_filename = create_safety_report(max_crowd=peak_crowd, alerts_triggered=len(st.session_state.history))
+            
+            with open(pdf_filename, "rb") as pdf_file:
+                st.sidebar.download_button(
+                    label="📥 Download Daily Report",
+                    data=pdf_file,
+                    file_name=pdf_filename,
+                    mime="application/pdf"
+                )
+            st.sidebar.success("✅ Report Generated!")
+        except Exception as e:
+            st.sidebar.error(f"Error generating report: {e}")
