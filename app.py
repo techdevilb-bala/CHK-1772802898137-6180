@@ -1,19 +1,19 @@
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
-from whatsapp_alert import send_whatsapp_alert
 import streamlit as st
 import cv2
 from ultralytics import YOLO
 import time
 import os
+import requests 
 
 # --- Team Modules Import ---
 from report_gen import create_safety_report
 from safety_math import check_proximity_violations
 from predictor import get_crowd_prediction
 from ai_brain import get_smart_alert
-from voice_alert import speak_warning  # 🔊 Voice Alert Module
+from voice_alert import speak_warning 
 
 # 1. Page Config & Cyberpunk UI
 st.set_page_config(page_title="Smart Crowd Intelligence", layout="wide", initial_sidebar_state="expanded")
@@ -32,200 +32,157 @@ st.markdown("""
 
 st.markdown("<h2>🛡️ SMART CROWD SURVEILLANCE</h2>", unsafe_allow_html=True)
 
-# Initialize data history
+# --- 📊 Dynamic Risk Chart Function (Fixed glow-dot) ---
+def create_dynamic_chart(history_df, threshold):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=history_df['Time'], y=history_df['Count'],
+        mode='lines+markers', name='Live Count',
+        line=dict(color='#00F0FF', width=3, shape='spline'),
+        marker=dict(size=8, color='#7000FF', symbol='circle-dot'), # 🟢 Fixed Symbol
+        fill='tozeroy', fillcolor='rgba(0, 240, 255, 0.1)'
+    ))
+    # Threshold Lines
+    fig.add_hline(y=int(threshold * 0.7), line_dash="dash", line_color="#FFFF00", annotation_text="🟡 Warning")
+    fig.add_hline(y=threshold, line_dash="dash", line_color="#FF2A2A", annotation_text="🔴 Danger")
+    
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#E0E0E0'), margin=dict(l=10, r=10, t=30, b=10),
+        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)')
+    )
+    return fig
+
+# Initialize History
 if 'history' not in st.session_state:
     st.session_state.history = pd.DataFrame(columns=['Time', 'Count'])
 
-# Load YOLOv8
+# Load YOLO
 @st.cache_resource
 def load_model():
     return YOLO('models/yolov8n.pt')
 model = load_model()
 
-# 3. Sidebar Configuration
+# Sidebar Control
 st.sidebar.header("🎛️ Control Panel")
-threshold = st.sidebar.slider("Crowd Limit", 5, 50, 10)
+threshold = st.sidebar.slider("Crowd Limit", 5, 100, 15)
 run_camera = st.sidebar.toggle("🔴 Start Dual Surveillance")
 
-# 4. Top Row (Metrics)
-st.markdown("### 📊 Live Network Analytics")
+# Metrics
+st.markdown("### 📊 Live Analytics")
 metric_col1, metric_col2, metric_col3 = st.columns(3)
 count_metric = metric_col1.empty()
 risk_metric = metric_col2.empty()
 trend_metric = metric_col3.empty()
 
-# 5. Dual Camera Layout
+# Camera Layout
 st.markdown("---")
 cam1_col, cam2_col = st.columns(2)
-with cam1_col:
-    st.markdown("<h4>📷 Cam 1: Main Gate (Webcam)</h4>", unsafe_allow_html=True)
-    cam1_placeholder = st.empty()
-with cam2_col:
-    st.markdown("<h4>📱 Cam 2: VIP Zone (Phone)</h4>", unsafe_allow_html=True)
-    cam2_placeholder = st.empty()
+cam1_placeholder = cam1_col.empty()
+cam2_placeholder = cam2_col.empty()
 
-st.markdown("---")
-
-# 6. Chart & Alerts Layout
 chart_col, alert_col = st.columns([2, 1])
-with chart_col:
-    st.markdown("<h4>📈 Network Trend</h4>", unsafe_allow_html=True)
-    chart_placeholder = st.empty()
-with alert_col:
-    st.markdown("<h4>🚨 Central Alerts</h4>", unsafe_allow_html=True)
-    alert_placeholder = st.empty()
+chart_placeholder = chart_col.empty()
+alert_placeholder = alert_col.empty()
 
 # ---------------------------------------------------------
-# 🔴 Main Loop: Running 2 Cameras
+# 🔴 Main Loop: Stable Hybrid Mode
 # ---------------------------------------------------------
 if run_camera:
-    # ⚠️ महत्त्वाची टीप: इथे तुझ्या फोनवर दिसणारा IP Address टाक
     phone_ip = "http://192.168.137.95:8080/video" 
     
     cap1 = cv2.VideoCapture(0)         
-    cap2 = cv2.VideoCapture(phone_ip)  
+    cap2 = None
     
-    frame_counter = 0 # 🟢 Lag Fix Counter
-    # --- 📊 NEW: Generative Dynamic Risk Chart ---
-def create_dynamic_chart(history_df, threshold):
-    fig = go.Figure()
+    # 📱 Safe Phone Check
+    try:
+        check_ip = phone_ip.replace("/video", "/status.json")
+        response = requests.get(check_ip, timeout=1.2)
+        if response.status_code == 200:
+            cap2 = cv2.VideoCapture(phone_ip)
+            st.sidebar.success("✅ Phone Connected")
+    except:
+        st.sidebar.info("📱 Phone Offline. Running on Webcam.")
+
+    frame_counter = 0 
     
-    # मुख्य लाईव्ह ट्रेंड लाईन (Neon Cyan)
-    fig.add_trace(go.Scatter(
-        x=history_df['Time'], 
-        y=history_df['Count'],
-        mode='lines+markers',
-        name='Crowd Count',
-        line=dict(color='#00F0FF', width=3, shape='spline'), # Spline मुळे ग्राफ एकदम स्मूथ दिसेल
-        marker=dict(size=8, color='#7000FF', symbol='glow-dot'),
-        fill='tozeroy', # लाईनच्या खाली रंग भरेल
-        fillcolor='rgba(0, 240, 255, 0.1)'
-    ))
-    
-    # 🟡 Yellow Zone (Warning Line) - धोक्याची चाहूल
-    warning_level = int(threshold * 0.7) # 70% गर्दी झाली की पिवळा झोन
-    fig.add_hline(y=warning_level, line_dash="dash", line_color="#FFFF00", 
-                  annotation_text="🟡 Warning Zone", annotation_font_color="#FFFF00")
-    
-    # 🔴 Red Zone (Danger Line) - थेट धोका
-    fig.add_hline(y=threshold, line_dash="dash", line_color="#FF2A2A", 
-                  annotation_text="🔴 Danger Zone", annotation_font_color="#FF2A2A")
-    
-    # ग्राफची सायबरपंक डिझाईन (Transparent Background)
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#E0E0E0', family="Rajdhani"),
-        margin=dict(l=0, r=0, t=30, b=0),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor='rgba(255, 255, 255, 0.1)', range=[0, max(threshold + 5, history_df['Count'].max() + 5)])
-    )
-    return fig
-    while cap1.isOpened() and cap2.isOpened():
+    while run_camera:
         ret1, frame1 = cap1.read()
-        ret2, frame2 = cap2.read()
-        
-        if not ret1 or not ret2: 
-            st.error("⚠️ Connection Lost! Please check WiFi or Camera.")
+        ret2 = False
+        if cap2 and cap2.isOpened():
+            ret2, frame2 = cap2.read()
+            
+        if not ret1 and not ret2:
+            st.error("No active cameras found!")
             break
             
         frame_counter += 1
-        
-        # 🟢 FIX: Process only every 3rd frame to stop LAG!
-        if frame_counter % 3 != 0:
-            continue
-        
-        # 🟢 FIX: Resize both frames so they fit perfectly
-        frame1 = cv2.resize(frame1, (640, 480))
-        frame2 = cv2.resize(frame2, (640, 480))
-            
-        # 🟢 ULTIMATE SPEED FIX: imgsz=320 
-        # Cam 1 Processing
-        res1 = model(frame1, classes=[0], conf=0.5, imgsz=320, verbose=False)
-        count1 = len(res1[0].boxes)
-        cam1_placeholder.image(res1[0].plot(), channels="BGR")
-        
-        # Cam 2 Processing
-        res2 = model(frame2, classes=[0], conf=0.5, imgsz=320, verbose=False)
-        count2 = len(res2[0].boxes)
-        cam2_placeholder.image(res2[0].plot(), channels="BGR")
-        
-        # Total People Logic
-        current_count = count1 + count2
-        
-        # Proximity Logic (Checking Cam 1)
-        boxes1 = res1[0].boxes.xyxy.cpu().numpy()
-        risky_people = check_proximity_violations(boxes1, distance_threshold=150)
-        
-        count_metric.metric("Total People (Network)", current_count)
+        if frame_counter % 3 != 0: continue
+
+        # --- 🧠 Process Cam 1 ---
+        if ret1:
+            frame1 = cv2.resize(frame1, (640, 480))
+            res1 = model(frame1, classes=[0], conf=0.4, imgsz=320, verbose=False)
+            count1 = len(res1[0].boxes)
+            cam1_placeholder.image(res1[0].plot(), channels="BGR")
+            boxes1 = res1[0].boxes.xyxy.cpu().numpy()
+            risky_people = check_proximity_violations(boxes1, distance_threshold=150)
+        else:
+            cam1_placeholder.warning("📷 Cam 1 Offline")
+            count1, risky_people = 0, 0
+
+        # --- 🧠 Process Cam 2 ---
+        if ret2:
+            frame2 = cv2.resize(frame2, (640, 480))
+            res2 = model(frame2, classes=[0], conf=0.4, imgsz=320, verbose=False)
+            count2 = len(res2[0].boxes)
+            cam2_placeholder.image(res2[0].plot(), channels="BGR")
+        else:
+            cam2_placeholder.info("📱 Cam 2 (Phone) Offline")
+            count2 = 0
+
+        # --- 📊 Unified Analytics ---
+        total_count = count1 + count2
+        count_metric.metric("Total People", total_count)
         risk_metric.metric("⚠️ High Risk", risky_people)
         
-        prediction_text = get_crowd_prediction(st.session_state.history)
-        trend_metric.metric("🔮 Future Trend", prediction_text)
+        prediction = get_crowd_prediction(st.session_state.history)
+        trend_metric.metric("🔮 Future Trend", prediction)
         
+        # Trend Update
         now = datetime.now().strftime("%H:%M:%S")
-        new_row = pd.DataFrame({'Time': [now], 'Count': [current_count]})
-        st.session_state.history = pd.concat([st.session_state.history, new_row]).tail(20)
+        new_entry = pd.DataFrame({'Time': [now], 'Count': [total_count]})
+        st.session_state.history = pd.concat([st.session_state.history, new_entry]).tail(30)
         
-        # 🟢 NEW: Update the advanced Plotly chart (दर ५ फ्रेम नंतर अपडेट करू म्हणजे लॅग होणार नाही)
-        if frame_counter % 5 == 0:
+        if frame_counter % 6 == 0:
             fig = create_dynamic_chart(st.session_state.history, threshold)
             chart_placeholder.plotly_chart(fig, use_container_width=True)
         
-        # AI Brain Alerts & Voice
-        if 'last_alert_time' not in st.session_state:
-            st.session_state.last_alert_time = 0
-
-        current_time_sec = time.time()
+        # --- 🚨 AI Alerts & Voice ---
+        if 'last_alert_time' not in st.session_state: st.session_state.last_alert_time = 0
         
-        if current_count > threshold or risky_people > 2:
-            if (current_time_sec - st.session_state.last_alert_time) > 15:
-                msg, status = get_smart_alert(current_count, threshold, risky_people)
+        if total_count > threshold or risky_people > 3:
+            if (time.time() - st.session_state.last_alert_time) > 20:
+                msg, status = get_smart_alert(total_count, threshold, risky_people) # 🟢 Using total_count
                 st.session_state.last_alert_msg = msg
                 st.session_state.last_alert_status = status
-                st.session_state.last_alert_time = current_time_sec
-                
-                # 🔊 NEW: Marathi Audio Warning
-                if status == "danger":
-                    speak_warning("Attention! Krupaya laksha dya. Gardi limit peksha jaast zali aahe. Krupaya surakshit antar theva.")
-                else:
-                    speak_warning("Alert. Gardi vaadhat aahe. Krupaya niyam che palan kara.")
+                st.session_state.last_alert_time = time.time()
+                speak_warning("Krupaya laksha dya. Gardi limit peksha jaast zali aahe.")
             
             if 'last_alert_msg' in st.session_state:
-                if st.session_state.last_alert_status == "danger":
-                    alert_placeholder.error(st.session_state.last_alert_msg)
-                else:
-                    alert_placeholder.warning(st.session_state.last_alert_msg)
+                if st.session_state.last_alert_status == "danger": alert_placeholder.error(st.session_state.last_alert_msg)
+                else: alert_placeholder.warning(st.session_state.last_alert_msg)
         else:
-            alert_placeholder.success("✅ Network Secure. All zones normal.")
-            
-        if not run_camera: 
-            break
-            
+            alert_placeholder.success("✅ System Status: Secure")
+
     cap1.release()
-    cap2.release()
+    if cap2: cap2.release()
 
-# ---------------------------------------------------------
-# 7. 📄 PDF Safety Report Generator (Sidebar)
-# ---------------------------------------------------------
+# 📄 PDF Sidebar
 st.sidebar.markdown("---")
-st.sidebar.markdown("<h3 style='color:#00FFCC;'>📄 Safety Report</h3>", unsafe_allow_html=True)
-
-if run_camera:
-    st.sidebar.warning("⚠️ Turn OFF 'Start Surveillance' to download the report.")
-else:
-    if st.sidebar.button("⚙️ Generate PDF Report"):
-        try:
-            peak_crowd = int(st.session_state.history['Count'].max()) if not st.session_state.history.empty else 0
-            pdf_filename = create_safety_report(max_crowd=peak_crowd, alerts_triggered=len(st.session_state.history))
-            
-            with open(pdf_filename, "rb") as pdf_file:
-                st.sidebar.download_button(
-                    label="📥 Download Daily Report",
-                    data=pdf_file,
-                    file_name=pdf_filename,
-                    mime="application/pdf"
-                )
-            st.sidebar.success("✅ Report Generated!")
-        except Exception as e:
-            st.sidebar.error(f"Error generating report: {e}")
+if not run_camera:
+    if st.sidebar.button("📊 Generate PDF Report"):
+        peak_c = int(st.session_state.history['Count'].max()) if not st.session_state.history.empty else 0
+        pdf_path = create_safety_report(peak_c, len(st.session_state.history))
+        with open(pdf_path, "rb") as f:
+            st.sidebar.download_button("📥 Download Official Report", f, file_name=pdf_path)
