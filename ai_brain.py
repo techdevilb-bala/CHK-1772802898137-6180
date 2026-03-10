@@ -15,24 +15,30 @@ try:
 except Exception:
     gemini_client = None
 
-# --- 🔊 Audio System (100% Offline) ---
+# --- 🔊 Audio System (100% Offline Background Thread) ---
 def speak_alert(text):
     def run_speech():
-        engine = pyttsx3.init()
-        rate = engine.getProperty('rate')
-        engine.setProperty('rate', rate - 30) 
-        engine.say(text)
-        engine.runAndWait()
-    threading.Thread(target=run_speech).start()
+        try:
+            engine = pyttsx3.init()
+            rate = engine.getProperty('rate')
+            engine.setProperty('rate', rate - 30) 
+            engine.say(text)
+            engine.runAndWait()
+        except Exception as e:
+            print(f"Audio Error: {e}")
+            
+    # Run in background so video doesn't lag
+    threading.Thread(target=run_speech, daemon=True).start()
 
 # --- 🧠 The 3-Tier AI Engine ---
 def get_smart_alert(current_count, threshold, risky_people):
+    # Condition 1: Everything is Safe
     if current_count <= threshold and risky_people <= 2:
         return "✅ Safe: Crowd is within normal limits. Proper distancing maintained.", "safe"
 
     prompt = f"Crowd limit is {threshold}, but current count is {current_count}. {risky_people} people are standing too close. Give a strict, short emergency warning in English."
 
-    # 🌐 TIER 1: Cloud AI (Gemini)
+    # 🌐 TIER 1: Cloud AI (Gemini Flash - High IQ)
     if gemini_client:
         try:
             response = gemini_client.models.generate_content(
@@ -42,9 +48,9 @@ def get_smart_alert(current_count, threshold, risky_people):
             speak_alert("Warning! Cloud AI has detected a crowd limit violation.")
             return f"🚨 CLOUD AI (Gemini):\n{response.text}", "danger"
         except Exception as e:
-            pass # Ignore error and fallback to Tier 2
+            print("Gemini failed, shifting to Tier 2...")
 
-    # 💻 TIER 2: Local Edge AI (Meta Llama 3 via Ollama) - 100% OFFLINE
+    # 💻 TIER 2: Local Edge AI (Llama 3 via Ollama - Offline IQ)
     try:
         response = ollama.chat(model='llama3', messages=[
             {'role': 'user', 'content': prompt}
@@ -53,6 +59,8 @@ def get_smart_alert(current_count, threshold, risky_people):
         return f"⚠️ EDGE AI (Llama 3 Offline):\n{response['message']['content']}", "warning"
         
     except Exception as local_e:
+        print("Ollama failed, shifting to Tier 3...")
+        
         # ⚙️ TIER 3: Hardcoded Fallback Logic (Absolute worst-case)
         offline_msg = (
             f"🔴 BASIC OFFLINE ALERT:\n"
@@ -63,8 +71,8 @@ def get_smart_alert(current_count, threshold, risky_people):
         speak_alert("System operating in basic logic mode. Please maintain distance.")
         return offline_msg, "danger"
 
-# Local testing
+# Local Hardware testing
 if __name__ == "__main__":
     print("Testing 3-Tier Brain...")
     msg, status = get_smart_alert(25, 10, 5)
-    print(msg)
+    print(f"Status: {status}\nMessage: {msg}")
