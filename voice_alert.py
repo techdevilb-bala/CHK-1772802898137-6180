@@ -1,21 +1,31 @@
 import pyttsx3
 import threading
 
-def speak_warning(message):
-    """
-    हे फंक्शन कॅमेरा फीड न थांबवता बॅकग्राउंडमध्ये आवाज देईल.
-    """
+def speak_warning(text):
+    """Localized Voice Protocol with Thread Safety"""
     def run_speech():
         try:
+            # नवीन इंजिन सुरू करणे
             engine = pyttsx3.init()
-            # आवाजाचा स्पीड (Rate) आणि व्हॉल्युम सेट करा
-            engine.setProperty('rate', 150) 
+            
+            # आवाजाचा वेग (Rate) आणि स्पष्टता
+            engine.setProperty('rate', 160)
             engine.setProperty('volume', 1.0)
-            engine.say(message)
+            
+            # बोलणे सुरू करणे
+            engine.say(text)
             engine.runAndWait()
+            
+            # इंजिन पूर्णपणे थांबवणे (महत्त्वाचे आहे!)
+            engine.stop()
+            del engine # मेमरी फ्री करणे
         except Exception as e:
             print(f"Voice Alert Error: {e}")
 
-    # Threading मुळे तुझा कॅमेरा लॅग होणार नाही!
-    thread = threading.Thread(target=run_speech)
+    # डॅशबोर्ड लॅग होऊ नये म्हणून थ्रेडमध्ये चालवा
+    thread = threading.Thread(target=run_speech, daemon=True)
     thread.start()
+
+if __name__ == "__main__":
+    # टेस्ट करण्यासाठी
+    speak_warning("सिस्टम सुरू झाली आहे. गर्दीवर लक्ष ठेवा.")

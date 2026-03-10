@@ -1,11 +1,19 @@
-"""
-=============================================================================
-SMART CROWD INTELLIGENCE SYSTEM - PROFESSIONAL ENTERPRISE BUILD (V6.0)
-Architecture: 3-Layer Edge AI (Perception -> Cognition -> Explainable Prediction)
-Features: Fail-Safe NO SIGNAL Logic, IP Cam Support, Bi-Directional Flow, Threat Logs
-=============================================================================
-"""
 
+def trigger_marathi_alert(alert_type):
+    messages = {
+        "overcrowded": "सावधान! गर्दी जास्त होत आहे, सुरक्षित अंतर राखा.",
+        "danger": "धोका! कृपया बाहेर जाण्याचा मार्ग वापरा.",
+        "missing": "लक्ष द्या! हरवलेली व्यक्ती सापडली आहे.",
+        "running": "कृपया पळू नका, शांततेत पुढे चाला."
+    }
+    msg = messages.get(alert_type, "सावधान!")
+    
+    # 🚨 थेट speak_warning फंक्शनला कॉल करा
+    try:
+        from voice_alert import speak_warning
+        speak_warning(msg)
+    except:
+        pass
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
@@ -31,7 +39,7 @@ os.makedirs(EVIDENCE_DIR, exist_ok=True)
 def send_telegram_alert(message):
     def send():
         token = "8764061611:AAGaN4wGO7ORvW-0lQbX0zkAaIAtLr37M0w"
-        chat_id = "153250187"
+        chat_id = "8764061611"
         url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
         try: requests.get(url, timeout=3)
         except: pass
@@ -136,11 +144,10 @@ if 'total_in' not in st.session_state: st.session_state.total_in = 0
 if 'total_out' not in st.session_state: st.session_state.total_out = 0 
 if 'ai_explanation' not in st.session_state: st.session_state.ai_explanation = "Initializing predictive models..."
 if 'last_alert_time' not in st.session_state: st.session_state.last_alert_time = 0
-
-# ==========================================
-# ⚙️ SIDEBAR: MASTER CONTROL PANEL
-# ==========================================
+if 'last_missing_alert' not in st.session_state: st.session_state.last_missing_alert = 0
+if 'last_alert_time' not in st.session_state: st.session_state.last_alert_time = 0
 st.sidebar.markdown("## ⚙️ System Configuration")
+
 
 with st.sidebar.expander("📹 Camera Sources (IP/USB)", expanded=True):
     cam1_source = st.text_input("Camera 1 (Main Feed)", value="0", help="Use '0' for Webcam, or IP Cam link (e.g. http://10.164.113.180:8080/video).")
@@ -184,9 +191,9 @@ if run_camera:
     st.session_state['run_state'] = not st.session_state.get('run_state', False)
     st.rerun()
 
-# ==========================================
+
 # 🖥️ MAIN UI LAYOUT
-# ==========================================
+
 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 m_count = metric_col1.empty()
 m_in = metric_col2.empty()
@@ -217,9 +224,9 @@ with g_col3: traffic_placeholder = st.empty()
 st.markdown("---")
 alert_placeholder = st.empty()
 
-# ==========================================
+#
 # 🔴 CORE INFERENCE ENGINE
-# ==========================================
+
 if st.session_state.get('run_state', False):
     
     @st.cache_resource
@@ -247,9 +254,9 @@ if st.session_state.get('run_state', False):
         fps = 1.0 / (current_time - fps_start_time + 1e-6)
         fps_start_time = current_time
 
-        # ---------------------------------------------------------
+        
         # 🛠️ CAM 1: FAIL-SAFE 'NO SIGNAL' LOGIC
-        # ---------------------------------------------------------
+       
         ret1, frame1 = cap1.read()
         
         count_people = 0
@@ -338,30 +345,58 @@ if st.session_state.get('run_state', False):
                     if annotated_frame[py:py+ph, px:px+pw].size > 0:
                         annotated_frame[py:py+ph, px:px+pw] = cv2.GaussianBlur(annotated_frame[py:py+ph, px:px+pw], (51, 51), 0)
 
-            if target_hist is not None and frame_counter % 4 == 0:
-                current_faces = face_cascade.detectMultiScale(cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY), 1.1, 5, minSize=(40, 40))
-                for (fx, fy, fw, fh) in current_faces:
-                    current_hist = cv2.calcHist([cv2.cvtColor(frame1[fy:fy+fh, fx:fx+fw], cv2.COLOR_BGR2HSV)], [0, 1], None, [16, 16], [0, 180, 0, 256])
-                    cv2.normalize(current_hist, current_hist)
-                    score = cv2.compareHist(target_hist, current_hist, cv2.HISTCMP_CORREL)
-                    if score > match_threshold:
-                        cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (0, 0, 255), 4)
-                        if current_time - st.session_state.last_missing_alert > 20: 
-                            log_msg = f"📢 DISPATCH: Missing Person matched ({int(score*100)}%). Directing team to Entry Zone."
-                            log_threat(log_msg, "CRITICAL")
-                            send_telegram_alert(f"🚨 {log_msg}")
-                            if audio_mode: trigger_marathi_alert("missing")
-                            save_evidence(annotated_frame, "MISSING_PERSON")
-                            st.session_state.last_missing_alert = current_time
+           # 👤 MISSING PERSON RADAR (OPTIMIZED)
+        if target_hist is not None and frame_counter % 4 == 0:
+            gray_frame = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+            current_faces = face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
+            
+            for (fx, fy, fw, fh) in current_faces:
+                # चेहरा सापडला की निळा बॉक्स
+                cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (255, 0, 0), 2)
+                
+                current_roi = frame1[fy:fy+fh, fx:fx+fw]
+                current_hsv = cv2.cvtColor(current_roi, cv2.COLOR_BGR2HSV)
+                current_hist = cv2.calcHist([current_hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
+                cv2.normalize(current_hist, current_hist)
+                
+                # 🧠 AI Comparison
+                score = cv2.compareHist(target_hist, current_hist, cv2.HISTCMP_CORREL)
+                
+                # जर स्कोर Sensitivity पेक्षा जास्त असेल (उदा. 0.65)
+                if score > match_threshold:
+                    cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (0, 0, 255), 4)
+                    
+                    # 🚨 CHECK COOLDOWN (सारखा आवाज येऊ नये म्हणून १५ सेकंदाचा गॅप)
+                    if (current_time - st.session_state.last_missing_alert) > 15:
+                        
+                        # १. टेलिग्राम आणि लॉग्ज
+                        log_msg = f"📢 DISPATCH: Missing Person matched ({int(score*100)}%)."
+                        log_threat(log_msg, "CRITICAL")
+                        send_telegram_alert(f"🚨 {log_msg}")
+                        
+                        # २. 🔊 MARATHI VOICE (Direct Trigger)
+                        if audio_mode:
+                            # आपण थेट voice_alert मधलं फंक्शन कॉल करूया थ्रेडिंग सोडून
+                            try:
+                                # थेट मराठी मेसेज पाठवा
+                                speak_warning("लक्ष द्या! हरवलेली व्यक्ती सापडली आहे.") 
+                            except Exception as e:
+                                # जर वरील ओळ एरर देत असेल तर हे वापर:
+                                trigger_marathi_alert("missing")
+                        
+                        # ३. फोटो सेव्ह आणि टोस्ट
+                        save_evidence(annotated_frame, "MISSING_PERSON")
+                        st.session_state.last_missing_alert = current_time
+                        st.toast("🚨 Missing Person Identified!", icon="👤")
 
             cv2.putText(annotated_frame, f"FPS: {int(fps)}", (550, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
         # Display Cam 1 (Either Normal Frame or NO SIGNAL Frame)
         cam1_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
         
-        # ---------------------------------------------------------
+       
         # 🛠️ CAM 2: FAIL-SAFE 'NO SIGNAL' LOGIC
-        # ---------------------------------------------------------
+
         if cap2.isOpened():
             ret2, frame2 = cap2.read()
             if not ret2 and not str(cam2_source).isdigit(): 
@@ -439,9 +474,9 @@ if st.session_state.get('run_state', False):
     if cap1 is not None: cap1.release()
     if cap2 is not None: cap2.release()
 
-# ==========================================
+#
 # 📄 POST-MISSION EXPORT & EVIDENCE
-# ==========================================
+# 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📂 Command Archives")
 if not st.session_state.get('run_state', False):
