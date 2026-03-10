@@ -7,6 +7,7 @@ import time
 import os
 import requests
 import numpy as np
+import gc  # 🔋 NEW: Garbage Collector for Endurance Mode
 from ultralytics import YOLO
 
 # --- 🚨 Telegram Alert System ---
@@ -77,12 +78,10 @@ def analyze_behavior_and_zones(boxes_data, frame_width):
             w, h = x2 - x1, y2 - y1
             cx, cy = int((x1+x2)/2), int((y1+y2)/2)
             
-            # Zone Count
             if cx < z1: zones["Entry"] += 1
             elif cx < z2: zones["Queue"] += 1
             else: zones["Temple"] += 1
 
-            # Behavior (Running/Falling)
             if obj_id in st.session_state.tracker:
                 prev_cx, prev_cy, prev_time = st.session_state.tracker[obj_id]
                 dist = ((cx-prev_cx)**2 + (cy-prev_cy)**2)**0.5
@@ -171,10 +170,15 @@ with st.sidebar.expander("🎛️ Detection Settings", expanded=True):
     confidence = st.sidebar.slider("🎯 Detection Confidence", 0.3, 0.9, 0.45, 0.05)
     proximity_threshold = st.sidebar.slider("📏 Proximity Alert (px)", 50, 200, 120)
 
-# 🔒 NEW FEATURE 1: Privacy & Compliance Toggle
+# 🔋 NEW: Endurance Mode Toggle (Defined BEFORE the loop to fix the error!)
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔋 System Performance")
+endurance_mode = st.sidebar.toggle("⚡ Endurance Mode (36-Hour Safe)", False, help="Reduces CPU/RAM usage to prevent overheating.")
+
+# 🔒 Privacy & Compliance Toggle
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔒 Privacy & Compliance")
-privacy_mode = st.sidebar.toggle("🕶️ Enable Privacy Mode (Blur Faces)", False, help="Anonymizes faces in real-time to comply with privacy laws (GDPR).")
+privacy_mode = st.sidebar.toggle("🕶️ Enable Privacy Mode (Blur Faces)", False, help="Anonymizes faces in real-time to comply with GDPR.")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Missing Finder")
@@ -243,11 +247,10 @@ missing_alert_placeholder = st.empty()
 # 🔴 Main Loop: Optimized Performance Mode
 # ---------------------------------------------------------
 if run_camera:
-    # Initialize Cam 1 (Main Webcam)
-    cap1 = cv2.VideoCapture(0)
+    cap1 = cv2.VideoCapture(0) # Change to 1 if default camera fails
     cap1.set(cv2.CAP_PROP_BUFFERSIZE, 1)  
 
-    # 📹 NEW FEATURE 2: Initialize Cam 2 (CCTV Simulation)
+    # 📹 Initialize Cam 2 (CCTV Simulation)
     cctv_file = "demo_cctv.mp4"
     cap2 = cv2.VideoCapture(cctv_file) if os.path.exists(cctv_file) else None
 
@@ -262,7 +265,19 @@ if run_camera:
             
         frame_counter += 1
         current_time = time.time()
-        if frame_counter % 2 != 0: continue # Process every 2nd frame
+        
+        # 🔋 ENDURANCE LOGIC 1: Smart Frame Skipping
+        skip_frames = 4 if endurance_mode else 2
+        if frame_counter % skip_frames != 0: 
+            continue 
+
+        # 🔋 ENDURANCE LOGIC 2: CPU Cooldown Breath
+        if endurance_mode:
+            time.sleep(0.02) 
+
+        # 🔋 ENDURANCE LOGIC 3: Auto RAM Cleaner
+        if frame_counter % 100 == 0:
+            gc.collect() 
 
         # --- FPS Calculation ---
         fps = 1.0 / (current_time - fps_start_time + 1e-6)
@@ -280,7 +295,6 @@ if run_camera:
             gray_for_blur = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
             privacy_faces = face_cascade.detectMultiScale(gray_for_blur, 1.1, 4)
             for (px, py, pw, ph) in privacy_faces:
-                # Ensure coordinates are within frame bounds to prevent crashing
                 px, py = max(0, px), max(0, py)
                 pw, ph = min(640 - px, pw), min(480 - py, ph)
                 face_roi = annotated_frame[py:py+ph, px:px+pw]
@@ -339,20 +353,20 @@ if run_camera:
         # 📹 PROCESS CAM 2 (Multi-Camera Logic)
         if cap2 is not None:
             ret2, frame2 = cap2.read()
-            if not ret2:  # Loop the video if it ends
+            if not ret2:  
                 cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret2, frame2 = cap2.read()
             if ret2:
                 frame2 = cv2.resize(frame2, (640, 480))
-                if frame_counter % 6 == 0: # Run YOLO slower on Cam2 to save FPS
+                # 🔋 Apply Endurance skip to Cam 2 as well
+                if frame_counter % (6 if endurance_mode else 3) == 0: 
                     res2 = model.track(frame2, classes=[0], conf=confidence, persist=True, imgsz=320, verbose=False)
                     frame2_annotated = res2[0].plot()
                 else:
-                    frame2_annotated = frame2 # fallback to raw frame for smoothness
+                    frame2_annotated = frame2 
                 cv2.putText(frame2_annotated, "CCTV 2: QUEUE ZONE", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
                 cam2_placeholder.image(frame2_annotated, channels="BGR", use_container_width=True)
         else:
-            # Fake 'NO SIGNAL' Error to make it look highly professional
             error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(error_frame, "CCTV 2: OFFLINE", (150, 220), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             cv2.putText(error_frame, "Place 'demo_cctv.mp4' in folder to activate.", (80, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
