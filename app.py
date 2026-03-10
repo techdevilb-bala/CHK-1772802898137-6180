@@ -288,11 +288,19 @@ if run_camera:
         # 📈 Throttled UI Rendering
         current_time = time.time()
         if current_time - last_chart_update > 1.0:
-            chart_placeholder.plotly_chart(create_dynamic_chart(st.session_state.history, threshold), use_container_width=True)
+            chart_placeholder.plotly_chart(
+                create_dynamic_chart(st.session_state.history, threshold), 
+                use_container_width=True,
+                key=f"trend_chart_{frame_counter}"  # <-- ही लाईन ॲड केली
+            )
             last_chart_update = current_time
             
         if current_time - last_density_update > 1.5:
-            density_placeholder.plotly_chart(create_density_heatmap(total_count, threshold), use_container_width=True)
+            density_placeholder.plotly_chart(
+                create_density_heatmap(total_count, threshold), 
+                use_container_width=True,
+                key=f"density_chart_{frame_counter}" # <-- ही लाईन ॲड केली
+            )
             last_density_update = current_time
         
         # --- 🚨 AI Alerts Logic ---
