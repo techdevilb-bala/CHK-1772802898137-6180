@@ -171,10 +171,15 @@ with st.sidebar.expander("🎛️ Detection Settings", expanded=True):
     confidence = st.sidebar.slider("🎯 Detection Confidence", 0.3, 0.9, 0.45, 0.05)
     proximity_threshold = st.sidebar.slider("📏 Proximity Alert (px)", 50, 200, 120)
 
+# 🔒 NEW FEATURE 1: Privacy & Compliance Toggle
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔒 Privacy & Compliance")
+privacy_mode = st.sidebar.toggle("🕶️ Enable Privacy Mode (Blur Faces)", False, help="Anonymizes faces in real-time to comply with privacy laws (GDPR).")
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Missing Finder")
 missing_file = st.sidebar.file_uploader("Upload Target Photo", type=['jpg', 'png'])
-match_threshold = st.sidebar.slider("Matching Sensitivity", 0.5, 0.9, 0.65) # Adjusted for better detection
+match_threshold = st.sidebar.slider("Matching Sensitivity", 0.5, 0.9, 0.65)
 
 target_hist = None
 if missing_file:
@@ -186,7 +191,6 @@ if missing_file:
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
     if len(faces) > 0:
         x, y, w, h = faces[0]
-        # FIX 1: Using HSV instead of BGR for accurate Lighting Resistance!
         target_roi = target_img[y:y+h, x:x+w]
         target_hsv = cv2.cvtColor(target_roi, cv2.COLOR_BGR2HSV)
         target_hist = cv2.calcHist([target_hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
@@ -215,7 +219,7 @@ density_metric = metric_col4.empty()
 
 st.markdown("---")
 # --- Camera Feeds Section ---
-st.markdown("### 📹 Live Surveillance Feeds")
+st.markdown("### 📹 Live Surveillance Feeds (Multi-Cam Network)")
 cam1_col, cam2_col = st.columns(2)
 cam1_placeholder = cam1_col.empty()
 cam2_placeholder = cam2_col.empty()
@@ -233,14 +237,19 @@ with analytics_col2:
 st.markdown("---")
 st.markdown("### 🚨 System Status & Notifications")
 alert_placeholder = st.empty()
-missing_alert_placeholder = st.empty() # New dedicated notification box for Missing Person!
+missing_alert_placeholder = st.empty() 
 
 # ---------------------------------------------------------
 # 🔴 Main Loop: Optimized Performance Mode
 # ---------------------------------------------------------
 if run_camera:
+    # Initialize Cam 1 (Main Webcam)
     cap1 = cv2.VideoCapture(0)
     cap1.set(cv2.CAP_PROP_BUFFERSIZE, 1)  
+
+    # 📹 NEW FEATURE 2: Initialize Cam 2 (CCTV Simulation)
+    cctv_file = "demo_cctv.mp4"
+    cap2 = cv2.VideoCapture(cctv_file) if os.path.exists(cctv_file) else None
 
     frame_counter, last_chart_update, last_density_update = 0, 0, 0
     fps_start_time = time.time() 
@@ -265,6 +274,19 @@ if run_camera:
         count1 = len(res1[0].boxes)
         
         annotated_frame = res1[0].plot()
+
+        # 🔒 APPLY PRIVACY MODE (Gaussian Blur)
+        if privacy_mode:
+            gray_for_blur = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+            privacy_faces = face_cascade.detectMultiScale(gray_for_blur, 1.1, 4)
+            for (px, py, pw, ph) in privacy_faces:
+                # Ensure coordinates are within frame bounds to prevent crashing
+                px, py = max(0, px), max(0, py)
+                pw, ph = min(640 - px, pw), min(480 - py, ph)
+                face_roi = annotated_frame[py:py+ph, px:px+pw]
+                if face_roi.size > 0:
+                    blurred_face = cv2.GaussianBlur(face_roi, (51, 51), 0)
+                    annotated_frame[py:py+ph, px:px+pw] = blurred_face
         
         # --- 📍 Behavior and Zones UI Overlay ---
         bh_alerts = []
@@ -283,7 +305,7 @@ if run_camera:
             cv2.rectangle(annotated_frame, (435, 5), (590, 45), (0,0,0), -1)
             cv2.putText(annotated_frame, f"TEMPLE: {zones['Temple']}", (440, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-        # --- 👤 FIX 2: Accurate Missing Person Search & Notifications ---
+        # --- 👤 Accurate Missing Person Search & Notifications ---
         if target_hist is not None and frame_counter % 4 == 0:
             gray_frame = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
             current_faces = face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
@@ -292,7 +314,6 @@ if run_camera:
                 cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (255, 0, 0), 2)
                 cv2.putText(annotated_frame, "Scanning...", (fx, fy-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 
-                # Convert to HSV for accurate matching
                 current_roi = frame1[fy:fy+fh, fx:fx+fw]
                 current_hsv = cv2.cvtColor(current_roi, cv2.COLOR_BGR2HSV)
                 current_hist = cv2.calcHist([current_hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
@@ -301,17 +322,12 @@ if run_camera:
                 score = cv2.compareHist(target_hist, current_hist, cv2.HISTCMP_CORREL)
                 
                 if score > match_threshold:
-                    # 🔴 1. Big Red UI Notification
                     missing_alert_placeholder.error(f"🚨 **TARGET IDENTIFIED!** Matching Accuracy: {int(score*100)}% at Camera 1")
-                    
-                    # 🔴 2. Telegram Alert (With 10-second Cooldown so it doesn't get blocked)
                     if current_time - st.session_state.last_missing_alert > 10:
                         send_telegram_alert(f"🚨 MISSING PERSON FOUND!\nAccuracy: {int(score*100)}%\nLocation: Entry Camera 1")
                         st.toast(f"🚨 Target Found! Check Telegram.", icon="👤")
                         speak_warning("Missing person identified.")
                         st.session_state.last_missing_alert = current_time
-                    
-                    # 🔴 3. Visual Red Box
                     cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (0, 0, 255), 4)
                     cv2.putText(annotated_frame, f"MATCH: {int(score*100)}%", (fx, fy-25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         elif target_hist is None:
@@ -320,6 +336,28 @@ if run_camera:
         cv2.putText(annotated_frame, f"FPS: {int(fps)}", (540, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cam1_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
         
+        # 📹 PROCESS CAM 2 (Multi-Camera Logic)
+        if cap2 is not None:
+            ret2, frame2 = cap2.read()
+            if not ret2:  # Loop the video if it ends
+                cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret2, frame2 = cap2.read()
+            if ret2:
+                frame2 = cv2.resize(frame2, (640, 480))
+                if frame_counter % 6 == 0: # Run YOLO slower on Cam2 to save FPS
+                    res2 = model.track(frame2, classes=[0], conf=confidence, persist=True, imgsz=320, verbose=False)
+                    frame2_annotated = res2[0].plot()
+                else:
+                    frame2_annotated = frame2 # fallback to raw frame for smoothness
+                cv2.putText(frame2_annotated, "CCTV 2: QUEUE ZONE", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                cam2_placeholder.image(frame2_annotated, channels="BGR", use_container_width=True)
+        else:
+            # Fake 'NO SIGNAL' Error to make it look highly professional
+            error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(error_frame, "CCTV 2: OFFLINE", (150, 220), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+            cv2.putText(error_frame, "Place 'demo_cctv.mp4' in folder to activate.", (80, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+            cam2_placeholder.image(error_frame, channels="BGR", use_container_width=True)
+
         # Risk checking
         boxes1 = res1[0].boxes.xyxy.cpu().numpy()
         risky_people = check_proximity_violations(boxes1, distance_threshold=proximity_threshold) if count1 > 1 else 0
@@ -372,6 +410,7 @@ if run_camera:
             alert_placeholder.success("✅ **System Status:** All Clear - Crowd within safe limits")
 
     cap1.release()
+    if cap2 is not None: cap2.release()
 
 # --- 📄 Professional Report Generation & Export ---
 st.sidebar.markdown("---")
