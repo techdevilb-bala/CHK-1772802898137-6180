@@ -3,29 +3,44 @@ import pandas as pd
 from datetime import datetime
 import streamlit as st
 import cv2
-from ultralytics import YOLO
 import time
 import os
 import requests
 import numpy as np
+from ultralytics import YOLO
 
-# --- 🚨 Telegram Alert ---
+# --- 🚨 Telegram Alert System ---
 def send_telegram_alert(message):
     token = "8764061611:AAGaN4wGO7ORvW-0lQbX0zkAaIAtLr37M0w"
     chat_id = "153250187"
     url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-    try: requests.get(url, timeout=2)
-    except: pass
+    try: 
+        requests.get(url, timeout=2)
+    except: 
+        pass
 
-# --- Team Modules Import ---
-from report_gen import create_safety_report
-from safety_math import check_proximity_violations
-from predictor import get_crowd_prediction
-from ai_brain import get_smart_alert
-from voice_alert import speak_warning 
+# --- 📦 Team Modules Import ---
+try:
+    from report_gen import create_safety_report
+    from safety_math import check_proximity_violations
+    from predictor import get_crowd_prediction
+    from ai_brain import get_smart_alert
+    from voice_alert import speak_warning 
+except ImportError:
+    st.warning("Custom modules missing. Running core independent system.")
+    def check_proximity_violations(boxes, distance_threshold): return 0
+    def get_crowd_prediction(df): return "Stable"
+    def get_smart_alert(c, t, r): return "Crowd is high", "warning"
+    def speak_warning(msg): pass
+    def create_safety_report(p, a): return "audit_report.pdf"
 
 # 1. 🌌 Page Config & Professional UI
-st.set_page_config(page_title="Smart Crowd Intelligence System", page_icon="🛡️", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Smart Crowd Intelligence System", 
+    page_icon="🛡️", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 # Professional CSS with Performance Optimization
 st.markdown("""
@@ -81,11 +96,26 @@ def analyze_behavior_and_zones(boxes_data, frame_width):
 # --- 📊 Professional Dynamic Chart ---
 def create_dynamic_chart(history_df, threshold):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=history_df['Time'], y=history_df['Count'], mode='lines+markers', name='Crowd Count', line=dict(color='#00D9FF', width=3, shape='spline'), marker=dict(size=6, color='#00D9FF', line=dict(width=1, color='#FFFFFF')), fill='tozeroy', fillcolor='rgba(0, 217, 255, 0.15)', hovertemplate='<b>Time:</b> %{x}<br><b>Count:</b> %{y}<extra></extra>'))
+    fig.add_trace(go.Scatter(
+        x=history_df['Time'], y=history_df['Count'], 
+        mode='lines+markers', name='Crowd Count', 
+        line=dict(color='#00D9FF', width=3, shape='spline'), 
+        marker=dict(size=6, color='#00D9FF', line=dict(width=1, color='#FFFFFF')), 
+        fill='tozeroy', fillcolor='rgba(0, 217, 255, 0.15)', 
+        hovertemplate='<b>Time:</b> %{x}<br><b>Count:</b> %{y}<extra></extra>'
+    ))
     fig.add_hrect(y0=0, y1=int(threshold * 0.7), fillcolor="rgba(0, 255, 136, 0.1)", line_width=0, annotation_text="Safe Zone", annotation_position="top left")
     fig.add_hrect(y0=int(threshold * 0.7), y1=threshold, fillcolor="rgba(255, 184, 0, 0.1)", line_width=0, annotation_text="Warning Zone", annotation_position="top left")
     fig.add_hrect(y0=threshold, y1=max(threshold * 1.5, history_df['Count'].max() + 10), fillcolor="rgba(255, 68, 68, 0.1)", line_width=0, annotation_text="Danger Zone", annotation_position="top left")
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(255,255,255,0.03)', font=dict(color='#E8E8E8', family='Inter'), margin=dict(l=20, r=20, t=40, b=20), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', title='Time'), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', title='People Count'), hovermode='x unified', showlegend=False, height=350)
+    
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(255,255,255,0.03)', 
+        font=dict(color='#E8E8E8', family='Inter'), 
+        margin=dict(l=20, r=20, t=40, b=20), 
+        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', title='Time'), 
+        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', title='People Count'), 
+        hovermode='x unified', showlegend=False, height=350
+    )
     return fig
 
 # --- 🎯 Density Heatmap Visualization ---
@@ -94,7 +124,24 @@ def create_density_heatmap(count, threshold):
     if density_percent < 70: color, status = '#00FF88', 'SAFE'
     elif density_percent <= 100: color, status = '#FFB800', 'CAUTION'
     else: color, status = '#FF4444', 'CRITICAL'
-    fig = go.Figure(go.Indicator(mode="gauge+number", value=density_percent, domain={'x': [0, 1], 'y': [0, 1]}, title={'text': f"<b>{status}</b>", 'font': {'size': 20, 'color': color}}, number={'suffix': "%", 'font': {'size': 32, 'color': color}}, gauge={'axis': {'range': [None, 150], 'tickwidth': 1, 'tickcolor': "white"}, 'bar': {'color': color}, 'bgcolor': "rgba(255,255,255,0.1)", 'borderwidth': 2, 'bordercolor': "white", 'steps': [{'range': [0, 70], 'color': 'rgba(0, 255, 136, 0.2)'}, {'range': [70, 100], 'color': 'rgba(255, 184, 0, 0.2)'}, {'range': [100, 150], 'color': 'rgba(255, 68, 68, 0.2)'}], 'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.75, 'value': 100}}))
+    
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=density_percent, 
+        domain={'x': [0, 1], 'y': [0, 1]}, 
+        title={'text': f"<b>{status}</b>", 'font': {'size': 20, 'color': color}}, 
+        number={'suffix': "%", 'font': {'size': 32, 'color': color}}, 
+        gauge={
+            'axis': {'range': [None, 150], 'tickwidth': 1, 'tickcolor': "white"}, 
+            'bar': {'color': color}, 'bgcolor': "rgba(255,255,255,0.1)", 
+            'borderwidth': 2, 'bordercolor': "white", 
+            'steps': [
+                {'range': [0, 70], 'color': 'rgba(0, 255, 136, 0.2)'}, 
+                {'range': [70, 100], 'color': 'rgba(255, 184, 0, 0.2)'}, 
+                {'range': [100, 150], 'color': 'rgba(255, 68, 68, 0.2)'}
+            ], 
+            'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.75, 'value': 100}
+        }
+    ))
     fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': "white", 'family': "Inter"}, height=250, margin=dict(l=20, r=20, t=50, b=20))
     return fig
 
@@ -104,36 +151,49 @@ if 'total_detected' not in st.session_state: st.session_state.total_detected = 0
 if 'peak_count' not in st.session_state: st.session_state.peak_count = 0
 if 'alert_count' not in st.session_state: st.session_state.alert_count = 0
 if 'system_uptime' not in st.session_state: st.session_state.system_uptime = time.time()
+if 'last_missing_alert' not in st.session_state: st.session_state.last_missing_alert = 0
 
 # --- Load Models ---
 @st.cache_resource
 def load_model():
-    model = YOLO('models/yolov8n.pt') 
+    try: model = YOLO('models/yolov8n.pt') 
+    except: model = YOLO('yolov8n.pt')
     model.fuse() 
     return model
+
 model = load_model()
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # --- Professional Sidebar ---
 st.sidebar.markdown("## ⚙️ System Configuration")
 with st.sidebar.expander("🎛️ Detection Settings", expanded=True):
-    threshold = st.slider("🚨 Crowd Threshold", 5, 100, 20)
-    confidence = st.slider("🎯 Detection Confidence", 0.3, 0.9, 0.45, 0.05)
-    proximity_threshold = st.slider("📏 Proximity Alert (px)", 50, 200, 120)
+    threshold = st.sidebar.slider("🚨 Crowd Threshold", 5, 100, 20)
+    confidence = st.sidebar.slider("🎯 Detection Confidence", 0.3, 0.9, 0.45, 0.05)
+    proximity_threshold = st.sidebar.slider("📏 Proximity Alert (px)", 50, 200, 120)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Missing Finder")
 missing_file = st.sidebar.file_uploader("Upload Target Photo", type=['jpg', 'png'])
+match_threshold = st.sidebar.slider("Matching Sensitivity", 0.5, 0.9, 0.65) # Adjusted for better detection
+
 target_hist = None
 if missing_file:
     file_bytes = np.asarray(bytearray(missing_file.read()), dtype=np.uint8)
     target_img = cv2.imdecode(file_bytes, 1)
-    faces = face_cascade.detectMultiScale(cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY), 1.1, 4)
+    st.sidebar.image(target_img, caption="Target Registered", width=120)
+    
+    gray = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
     if len(faces) > 0:
         x, y, w, h = faces[0]
-        target_hist = cv2.calcHist([target_img[y:y+h, x:x+w]], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+        # FIX 1: Using HSV instead of BGR for accurate Lighting Resistance!
+        target_roi = target_img[y:y+h, x:x+w]
+        target_hsv = cv2.cvtColor(target_roi, cv2.COLOR_BGR2HSV)
+        target_hist = cv2.calcHist([target_hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
         cv2.normalize(target_hist, target_hist)
-        st.sidebar.success("✅ Target Registered!")
+        st.sidebar.success("✅ AI Face Signature Registered (HSV Mode)!")
+    else:
+        st.sidebar.error("❌ No face detected in photo. Try another.")
 
 st.sidebar.markdown("---")
 run_camera = st.sidebar.toggle("▶️ Start Surveillance System")
@@ -148,7 +208,10 @@ st.sidebar.metric("⚠️ Alerts Triggered", st.session_state.alert_count)
 st.markdown("---")
 # --- Top Metrics Row ---
 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-count_metric, risk_metric, trend_metric, density_metric = metric_col1.empty(), metric_col2.empty(), metric_col3.empty(), metric_col4.empty()
+count_metric = metric_col1.empty()
+risk_metric = metric_col2.empty()
+trend_metric = metric_col3.empty()
+density_metric = metric_col4.empty()
 
 st.markdown("---")
 # --- Camera Feeds Section ---
@@ -168,8 +231,9 @@ with analytics_col2:
     density_placeholder = st.empty()
 
 st.markdown("---")
-st.markdown("### 🚨 System Status & AI Logs")
+st.markdown("### 🚨 System Status & Notifications")
 alert_placeholder = st.empty()
+missing_alert_placeholder = st.empty() # New dedicated notification box for Missing Person!
 
 # ---------------------------------------------------------
 # 🔴 Main Loop: Optimized Performance Mode
@@ -179,6 +243,7 @@ if run_camera:
     cap1.set(cv2.CAP_PROP_BUFFERSIZE, 1)  
 
     frame_counter, last_chart_update, last_density_update = 0, 0, 0
+    fps_start_time = time.time() 
     
     while run_camera:
         ret1, frame1 = cap1.read()
@@ -187,41 +252,73 @@ if run_camera:
             break
             
         frame_counter += 1
-        if frame_counter % 2 != 0: continue # 🏎️ Process every 2nd frame
+        current_time = time.time()
+        if frame_counter % 2 != 0: continue # Process every 2nd frame
 
-        # --- 🧠 Process Cam 1 (With Tracking for Velocity) ---
+        # --- FPS Calculation ---
+        fps = 1.0 / (current_time - fps_start_time + 1e-6)
+        fps_start_time = current_time
+
+        # --- 🧠 Process Cam 1 ---
         frame1 = cv2.resize(frame1, (640, 480))
-        # ⚠️ FIX: Changed model() to model.track() to enable object IDs for panic detection
         res1 = model.track(frame1, classes=[0], conf=confidence, persist=True, imgsz=320, verbose=False)
         count1 = len(res1[0].boxes)
         
-        # Behavior and Zones
+        annotated_frame = res1[0].plot()
+        
+        # --- 📍 Behavior and Zones UI Overlay ---
         bh_alerts = []
         if res1[0].boxes.id is not None:
             zones, bh_alerts = analyze_behavior_and_zones(res1[0].boxes.data.cpu().numpy(), 640)
             
-            # Draw Zones on Frame
-            cv2.line(frame1, (213, 0), (213, 480), (255, 255, 255), 2)
-            cv2.line(frame1, (426, 0), (426, 480), (255, 255, 255), 2)
-            cv2.putText(frame1, f"ENTRY: {zones['Entry']}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            cv2.putText(frame1, f"QUEUE: {zones['Queue']}", (230, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            cv2.putText(frame1, f"TEMPLE: {zones['Temple']}", (440, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            cv2.line(annotated_frame, (213, 0), (213, 480), (0, 255, 255), 2, cv2.LINE_AA)
+            cv2.line(annotated_frame, (426, 0), (426, 480), (0, 255, 255), 2, cv2.LINE_AA)
+            
+            cv2.rectangle(annotated_frame, (5, 5), (140, 45), (0,0,0), -1)
+            cv2.putText(annotated_frame, f"ENTRY: {zones['Entry']}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            
+            cv2.rectangle(annotated_frame, (225, 5), (360, 45), (0,0,0), -1)
+            cv2.putText(annotated_frame, f"QUEUE: {zones['Queue']}", (230, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            
+            cv2.rectangle(annotated_frame, (435, 5), (590, 45), (0,0,0), -1)
+            cv2.putText(annotated_frame, f"TEMPLE: {zones['Temple']}", (440, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-        # Missing Person Search
-        if target_hist is not None and frame_counter % 10 == 0:
+        # --- 👤 FIX 2: Accurate Missing Person Search & Notifications ---
+        if target_hist is not None and frame_counter % 4 == 0:
             gray_frame = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray_frame, 1.1, 4)
-            for (x, y, w, h) in faces:
-                sample_hist = cv2.calcHist([frame1[y:y+h, x:x+w]], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
-                cv2.normalize(sample_hist, sample_hist)
-                if cv2.compareHist(target_hist, sample_hist, cv2.HISTCMP_CORREL) > 0.75:
-                    send_telegram_alert("👤 TARGET FOUND: Missing person spotted at Camera 1!")
-                    st.toast("🚨 TARGET FOUND!", icon="👤")
+            current_faces = face_cascade.detectMultiScale(gray_frame, 1.1, 5, minSize=(40, 40))
+            
+            for (fx, fy, fw, fh) in current_faces:
+                cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (255, 0, 0), 2)
+                cv2.putText(annotated_frame, "Scanning...", (fx, fy-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 
-        # Combine annotations and display
-        annotated_frame = res1[0].plot()
-        final_frame = cv2.addWeighted(frame1, 0.4, annotated_frame, 0.6, 0)
-        cam1_placeholder.image(final_frame, channels="BGR", use_container_width=True)
+                # Convert to HSV for accurate matching
+                current_roi = frame1[fy:fy+fh, fx:fx+fw]
+                current_hsv = cv2.cvtColor(current_roi, cv2.COLOR_BGR2HSV)
+                current_hist = cv2.calcHist([current_hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
+                cv2.normalize(current_hist, current_hist)
+                
+                score = cv2.compareHist(target_hist, current_hist, cv2.HISTCMP_CORREL)
+                
+                if score > match_threshold:
+                    # 🔴 1. Big Red UI Notification
+                    missing_alert_placeholder.error(f"🚨 **TARGET IDENTIFIED!** Matching Accuracy: {int(score*100)}% at Camera 1")
+                    
+                    # 🔴 2. Telegram Alert (With 10-second Cooldown so it doesn't get blocked)
+                    if current_time - st.session_state.last_missing_alert > 10:
+                        send_telegram_alert(f"🚨 MISSING PERSON FOUND!\nAccuracy: {int(score*100)}%\nLocation: Entry Camera 1")
+                        st.toast(f"🚨 Target Found! Check Telegram.", icon="👤")
+                        speak_warning("Missing person identified.")
+                        st.session_state.last_missing_alert = current_time
+                    
+                    # 🔴 3. Visual Red Box
+                    cv2.rectangle(annotated_frame, (fx, fy), (fx+fw, fy+fh), (0, 0, 255), 4)
+                    cv2.putText(annotated_frame, f"MATCH: {int(score*100)}%", (fx, fy-25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        elif target_hist is None:
+            missing_alert_placeholder.empty()
+
+        cv2.putText(annotated_frame, f"FPS: {int(fps)}", (540, 460), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cam1_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
         
         # Risk checking
         boxes1 = res1[0].boxes.xyxy.cpu().numpy()
@@ -243,8 +340,6 @@ if run_camera:
         now = datetime.now().strftime("%H:%M:%S")
         st.session_state.history = pd.concat([st.session_state.history, pd.DataFrame({'Time': [now], 'Count': [total_count]})]).tail(30)
         
-        # 📈 Throttled UI Rendering
-        current_time = time.time()
         if current_time - last_chart_update > 1.0:
             chart_placeholder.plotly_chart(create_dynamic_chart(st.session_state.history, threshold), use_container_width=True, key=f"trend_chart_{frame_counter}")
             last_chart_update = current_time
@@ -253,7 +348,7 @@ if run_camera:
             density_placeholder.plotly_chart(create_density_heatmap(total_count, threshold), use_container_width=True, key=f"density_chart_{frame_counter}")
             last_density_update = current_time
         
-        # --- 🚨 AI Alerts Logic ---
+        # --- 🚨 AI Alerts Logic (Crowd limits & Fighting) ---
         if 'last_alert_time' not in st.session_state: st.session_state.last_alert_time = 0
         
         if bh_alerts:
@@ -278,14 +373,24 @@ if run_camera:
 
     cap1.release()
 
-# --- 📄 Professional Report Generation ---
+# --- 📄 Professional Report Generation & Export ---
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📄 Post-Event Analytics")
 if not run_camera:
+    if not st.session_state.history.empty:
+        csv_data = st.session_state.history.to_csv(index=False).encode('utf-8')
+        st.sidebar.download_button(
+            label="💾 Export Raw Data (CSV)",
+            data=csv_data,
+            file_name=f"crowd_data_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
     if st.sidebar.button("📊 Generate Incident Report", use_container_width=True):
         with st.spinner("🔄 Generating AI-powered Safety Audit..."):
             peak_c = int(st.session_state.history['Count'].max()) if not st.session_state.history.empty else 0
             pdf_path = create_safety_report(peak_c, st.session_state.alert_count)
             with open(pdf_path, "rb") as f:
                 st.sidebar.download_button("📥 Download Official PDF", f, file_name=pdf_path, mime="application/pdf", use_container_width=True)
-            st.sidebar.success("✅ Report generated!")
+            st.sidebar.success("✅ Report generated successfully!")

@@ -3,13 +3,10 @@ import threading
 import urllib.parse
 
 def send_whatsapp_alert(message, phone_number, api_key):
-    """
-    ही फंक्शन बॅकग्राउंडमध्ये (वेगळ्या थ्रेडवर) WhatsApp मेसेज पाठवेल, 
-    जेणेकरून कॅमेराचा व्हिडिओ स्लो होणार नाही.
-    """
+   
     def send_req():
         try:
-            # मेसेजला URL फॉरमॅटमध्ये कन्व्हर्ट करा (उदा. Space ऐवजी %20)
+           
             encoded_message = urllib.parse.quote(message)
             url = f"https://api.callmebot.com/whatsapp.php?phone={phone_number}&text={encoded_message}&apikey={api_key}"
             
