@@ -1,49 +1,48 @@
-import math
+import numpy as np
 
-def calculate_distance(box1, box2):
+def check_proximity_violations(boxes, distance_threshold=120):
     """
-    Calculates the Euclidean distance between the center points of two bounding boxes.
-    YOLO box format: [x1, y1, x2, y2]
+    Calculates how many people are violating the proximity rule (social distancing).
+    Uses fast NumPy array operations to prevent video lag.
     """
-    # Find the center coordinates of Box 1
-    c1_x = (box1[0] + box1[2]) / 2
-    c1_y = (box1[1] + box1[3]) / 2
-    
-    # Find the center coordinates of Box 2
-    c2_x = (box2[0] + box2[2]) / 2
-    c2_y = (box2[1] + box2[3]) / 2
-    
-    # Apply Euclidean Distance Formula
-    distance = math.sqrt((c2_x - c1_x)**2 + (c2_y - c1_y)**2)
-    return distance
-
-def check_proximity_violations(boxes, distance_threshold=100):
-    """
-    Takes a list of YOLO bounding boxes and returns the number of people 
-    who are standing dangerously close to each other.
-    """
-    violations = set()
     num_people = len(boxes)
     
-    # We need at least 2 people to check the distance
+    # जर 1 पेक्षा कमी लोक असतील, तर डिस्टन्स मोजण्याची गरजच नाही
     if num_people < 2:
         return 0
         
-    # Compare every person with every other person
+    # सर्व लोकांचे Centroids (मध्यबिंदू) वेगाने काढणे
+    centroids = []
+    for box in boxes:
+        x1, y1, x2, y2 = box[:4]
+        cx = (x1 + x2) / 2.0
+        cy = (y1 + y2) / 2.0
+        centroids.append([cx, cy])
+        
+    centroids = np.array(centroids)
+    risky_indices = set()
+    
+    # Pairwise Distance Calculation (हाय-स्पीड लूप)
     for i in range(num_people):
         for j in range(i + 1, num_people):
-            dist = calculate_distance(boxes[i], boxes[j])
+            # Euclidean distance formula
+            dist = np.linalg.norm(centroids[i] - centroids[j])
             
-            # If distance is less than threshold, it's a violation
             if dist < distance_threshold:
-                violations.add(i)
-                violations.add(j)
+                risky_indices.add(i)
+                risky_indices.add(j)
                 
-    return len(violations) # Total people at risk
+    # किती लोक एकमेकांच्या खूप जवळ उभे आहेत त्याचा आकडा परत करा
+    return len(risky_indices)
 
-# Local test block
+# Local Testing
 if __name__ == "__main__":
-    # Dummy boxes: [x1, y1, x2, y2]
-    test_boxes = [[10, 10, 50, 50], [15, 15, 55, 55], [300, 300, 350, 350]]
-    risky_people = check_proximity_violations(test_boxes, distance_threshold=100)
-    print(f"Test Run: {risky_people} people are standing too close!")
+    # Dummy boxes [x1, y1, x2, y2]
+    test_boxes = np.array([
+        [10, 10, 50, 100],  # Person 1 (Close to Person 2)
+        [20, 20, 60, 110],  # Person 2 (Close to Person 1)
+        [300, 300, 350, 400] # Person 3 (Far away)
+    ])
+    
+    violations = check_proximity_violations(test_boxes, distance_threshold=100)
+    print(f"Test Run: Detected {violations} risky people.")
