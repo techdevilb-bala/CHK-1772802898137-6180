@@ -1,5 +1,7 @@
 import pyttsx3
 import threading
+import pyttsx3
+import threading
 
 def speak_warning(text):
     """Localized Voice Protocol with Thread Safety"""
@@ -29,3 +31,26 @@ def speak_warning(text):
 if __name__ == "__main__":
     # टेस्ट करण्यासाठी
     speak_warning("सिस्टम सुरू झाली आहे. गर्दीवर लक्ष ठेवा.")
+def speak_warning(text):
+    def run_speech():
+        try:
+            # नवीन इंजिन दरवेळी सुरू करणे चांगले असते
+            engine = pyttsx3.init()
+            
+            # आवाजाचा वेग आणि वॉल्यूम सेट करा
+            engine.setProperty('rate', 150)
+            engine.setProperty('volume', 1.0)
+            
+            # मराठी किंवा हिंदी आवाजासाठी (जर लॅपटॉपमध्ये असेल तर)
+            voices = engine.getProperty('voices')
+            # engine.setProperty('voice', voices[1].id) 
+
+            engine.say(text)
+            engine.runAndWait()
+            # इंजिन थांबवणे महत्त्वाचे आहे
+            engine.stop()
+        except Exception as e:
+            print(f"Speech Error: {e}")
+
+    # हे थ्रेडमध्ये चालवा जेणेकरून कॅमेरा अडकणार नाही
+    threading.Thread(target=run_speech, daemon=True).start()

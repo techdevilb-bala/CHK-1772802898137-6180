@@ -1,5 +1,29 @@
 import pandas as pd
 import google.generativeai as genai
+import pandas as pd
+import numpy as np
+
+def get_crowd_prediction(history_df):
+    """Predicts future crowd trajectory based on current velocity."""
+    try:
+        if len(history_df) < 5:
+            return "Gathering baseline telemetry..."
+
+        # शेवटच्या ५ डेटा पॉईंट्सवरून कल (Trend) ओळखणे
+        counts = history_df['Count'].values[-5:].astype(float)
+        x = np.arange(len(counts))
+        
+        # साधे Linear Regression (Slope काढणे)
+        slope, _ = np.polyfit(x, counts, 1)
+        
+        if slope > 1.5:
+            return "HIGH INFLOW: Volumetric density increasing rapidly."
+        elif slope < -1.0:
+            return "STABLE: Crowd dispersion in progress."
+        else:
+            return "NOMINAL: Flow velocity is constant."
+    except Exception:
+        return "Analyzing flow patterns..."
 
 # जर तुझ्याकडे Gemini API Key असेल तर इथे टाक (नसले तरीही सिस्टीम 'Offline Failsafe' लॉजिकवर चालेल)
 GEMINI_API_KEY = "इथे_तुझी_API_KEY_टाक" 
