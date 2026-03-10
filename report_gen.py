@@ -1,79 +1,81 @@
-import os
 from fpdf import FPDF
-import google.generativeai as genai
 from datetime import datetime
-from dotenv import load_dotenv
+import os
 
-# लोड API Key
-load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-def generate_ai_insights(peak_crowd, total_alerts):
+def create_safety_report(peak_count, alert_count):
     """
-    Gemini AI ला गर्दीचा डेटा पाठवून पोलिसांसाठी सल्ले (Recommendations) मागवणे.
+    Generates a professional PDF Safety Audit Report.
+    Returns the filepath of the generated PDF.
     """
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"""
-        Act as an expert crowd control analyst for the local police department. 
-        A recent event had a peak crowd of {peak_crowd} people and triggered {total_alerts} high-risk proximity alerts. 
-        Write a short, professional 3-point recommendation for the police to improve safety and avoid stampedes for the next event. 
-        Keep it concise and actionable.
-        """
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return "AI Analysis unavailable. Recommendation: Increase physical barricades, deploy more personnel at entry points, and monitor CCTV feeds actively."
-
-def create_safety_report(max_crowd, alerts_triggered):
-    """
-    AI चे सल्ले घेऊन एक प्रोफेशनल PDF फाईल तयार करणे.
-    """
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    date_str = datetime.now().strftime("%B %d, %Y")
+    # 'reports' नावाचे फोल्डर नसल्यास नवीन तयार करा
+    if not os.path.exists("reports"):
+        os.makedirs("reports")
+        
+    # फाईलचे नाव आणि वेळ
+    current_time = datetime.now()
+    timestamp = current_time.strftime("%Y%m%d_%H%M%S")
+    date_str = current_time.strftime("%d %B %Y, %I:%M %p")
+    filepath = f"reports/Security_Audit_{timestamp}.pdf"
     
-    # 🧠 AI कडून पोलिसांसाठी रिपोर्ट लिहून घेणे
-    ai_insights = generate_ai_insights(max_crowd, alerts_triggered)
-    
-    # PDF डिझाईन सुरू
+    # PDF डिझाईन सुरू (FPDF)
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
     
-    # Header (Title)
-    pdf.set_font("Arial", 'B', 16)
-    pdf.set_text_color(220, 50, 50) # लाल रंग
-    pdf.cell(200, 10, txt="SMART CROWD SURVEILLANCE - INCIDENT REPORT", ln=True, align='C')
+    # 1. 🏢 Header Section
+    pdf.set_font("Arial", 'B', 18)
+    pdf.set_text_color(0, 51, 102) # गडद निळा रंग (Professional)
+    pdf.cell(200, 10, txt="SVERI SMART CROWD INTELLIGENCE", ln=True, align='C')
+    
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(255, 68, 68) # लाल रंग
+    pdf.cell(200, 10, txt="Post-Event Safety Audit Report", ln=True, align='C')
+    
+    pdf.ln(10) # रिकामी जागा
+    
+    # 2. 📅 Event Details
+    pdf.set_font("Arial", '', 12)
     pdf.set_text_color(0, 0, 0) # काळा रंग
-    pdf.set_font("Arial", size=10)
-    pdf.cell(200, 10, txt=f"Date: {date_str} | Location: Main Gate (Cam 1)", ln=True, align='C')
+    pdf.cell(200, 10, txt=f"Report Generated On: {date_str}", ln=True, align='L')
+    pdf.cell(200, 10, txt="Location: SVERI Main Campus / Event Venue", ln=True, align='L')
+    pdf.line(10, 55, 200, 55) # एक रेष मारा
     pdf.ln(10)
     
-    # गर्दीची आकडेवारी
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="1. Crowd Statistics:", ln=True)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"- Peak Crowd Count: {max_crowd} persons detected at once.", ln=True)
-    pdf.cell(200, 10, txt=f"- High-Risk Alerts Triggered: {alerts_triggered} times.", ln=True)
-    pdf.ln(10)
+    # 3. 📊 Executive Summary (Data)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="1. Executive Summary", ln=True, align='L')
     
-    # AI Analysis Section
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 100, 200) # निळा रंग
-    pdf.cell(200, 10, txt="2. AI Predictive Analysis & Police Recommendations:", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", size=11)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(200, 10, txt=f"-> Peak Crowd Detected: {peak_count} individuals", ln=True, align='L')
+    pdf.cell(200, 10, txt=f"-> Total Security Alerts Triggered: {alert_count}", ln=True, align='L')
     
-    # Gemini च्या टेक्स्ट मधले Markdown (* आणि **) काढून टाकणे जेणेकरून PDF मध्ये नीट दिसेल
-    clean_text = ai_insights.replace('**', '').replace('*', '-')
-    pdf.multi_cell(0, 10, txt=clean_text)
+    # Status Logic
+    status = "SAFE" if alert_count < 5 else "HIGH RISK"
+    pdf.cell(200, 10, txt=f"-> Overall Event Security Status: {status}", ln=True, align='L')
+    pdf.ln(5)
     
-    # Footer
+    # 4. 🧠 AI Recommendations
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="2. AI System Recommendations", ln=True, align='L')
+    
+    pdf.set_font("Arial", '', 12)
+    if alert_count > 5:
+        pdf.multi_cell(0, 10, txt="Warning: The event experienced multiple overcrowding and proximity violations. It is highly recommended to increase security personnel and expand the venue capacity for future events.")
+    else:
+        pdf.multi_cell(0, 10, txt="Success: The event was managed effectively. Crowd density remained within safe limits and social distancing was properly maintained by the attendees.")
+        
     pdf.ln(20)
+    
+    # 5. ✒️ Footer/Signature
     pdf.set_font("Arial", 'I', 10)
-    pdf.cell(200, 10, txt="Generated automatically by SVERI AI Crowd Intelligence System", ln=True, align='C')
+    pdf.set_text_color(128, 128, 128)
+    pdf.cell(200, 10, txt="Report auto-generated by SVERI AI Crowd Engine (YOLOv8 + Gemini)", ln=True, align='C')
     
     # PDF सेव्ह करा
-    filename = f"Incident_Report_{timestamp}.pdf"
-    pdf.output(filename)
-    return filename
+    pdf.output(filepath)
+    return filepath
+
+# Local Testing
+if __name__ == "__main__":
+    print("Generating Test Report...")
+    test_file = create_safety_report(peak_count=150, alert_count=8)
+    print(f"✅ Report successfully generated at: {test_file}")
