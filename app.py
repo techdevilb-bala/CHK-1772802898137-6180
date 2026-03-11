@@ -1,22 +1,55 @@
-"""
-=========================================================================================
-🛡️ SMART CROWD INTELLIGENCE & TACTICAL DISPATCH SYSTEM (ENTERPRISE HACKATHON BUILD)
-=========================================================================================
-Version: 10.0 (Final Production Release)
-Architecture: 
-    - Layer 1: Edge AI Perception (Ultralytics YOLOv8)
-    - Layer 2: Spatial & Temporal Analytics (Bi-Directional Flow, Heatmaps)
-    - Layer 3: Predictive Neural Engine (Time-to-Breach Estimation)
-    - Layer 4: Automated Tactical Dispatch (Telegram + Localized Marathi PA)
 
-Key Features:
-    * Fail-Safe 'NO SIGNAL' Reconnection Logic
-    * Missing Person Radar via Color/Histogram Signature Matching
-    * Explainable AI (XAI) Insight Briefing
-    * Modern Glassmorphism UI
-=========================================================================================
-"""
+# ==========================================
+# 🚨 2. COMMUNICATION & DISPATCH MODULES
+# ==========================================
+import requests
+from requests.auth import HTTPBasicAuth
+import threading
+from datetime import datetime
+import cv2
+import os
+import streamlit as st
 
+EVIDENCE_DIR = "incident_logs"
+os.makedirs(EVIDENCE_DIR, exist_ok=True)
+
+def send_whatsapp_alert(message):
+    """Sends priority tactical alerts via Twilio Enterprise WhatsApp API"""
+    def send():
+        # ⚠️ इथे तुझे Twilio डॅशबोर्डवरील डिटेल्स टाक
+        account_sid = 'ACf0ec2706c55ce3e04a3e4679d8919920'
+        auth_token = '28bf9a7b02484292b2bc76f903f97084'
+        from_whatsapp_number = 'whatsapp:+14155238886' 
+        to_whatsapp_number = 'whatsapp:+917249836522' 
+        
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+        data = {'From': from_whatsapp_number, 'To': to_whatsapp_number, 'Body': f"🚨 *CROWD COMMAND ALERT*\n\n{message}"}
+        try:
+            requests.post(url, data=data, auth=HTTPBasicAuth(account_sid, auth_token), timeout=5)
+        except Exception as e:
+            pass
+    threading.Thread(target=send, daemon=True).start()
+
+def save_evidence(frame, incident_type):
+    """Captures a high-res snapshot of the incident."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{EVIDENCE_DIR}/{incident_type}_{timestamp}.jpg"
+    cv2.imwrite(filename, frame)
+    return filename
+
+def log_threat(message, level="WARNING"):
+    """Smart Logging System - Maintains an active tactical feed on the dashboard."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    color = "#FF4444" if level == "CRITICAL" else "#FFB800" if level == "WARNING" else "#00FFCC"
+    
+    if 'threat_logs' not in st.session_state: 
+        st.session_state.threat_logs = []
+        
+    log_html = f"<div class='log-box'><span style='color:{color}; font-weight:bold;'>[{timestamp}] {level}:</span> {message}</div>"
+    st.session_state.threat_logs.insert(0, log_html)
+    
+    if len(st.session_state.threat_logs) > 8:
+        st.session_state.threat_logs.pop()
 # --- CORE LIBRARIES ---
 import os
 import time
@@ -37,51 +70,48 @@ import streamlit as st
 import plotly.graph_objects as go
 import requests
 
-# ==========================================
-# 📁 1. SYSTEM DIRECTORIES & EVIDENCE SETUP
-# ==========================================
+
 EVIDENCE_DIR = "incident_logs"
 os.makedirs(EVIDENCE_DIR, exist_ok=True)
 
-# ==========================================
+
 # 🚨 2. COMMUNICATION & DISPATCH MODULES
+
 # ==========================================
-def send_telegram_alert(message):
-    """Sends asynchronous priority alerts to the Chief Security Officer's Telegram."""
+# 🚨 2. COMMUNICATION: WHATSAPP DISPATCH (TWILIO)
+# ==========================================
+import requests
+from requests.auth import HTTPBasicAuth
+
+def send_whatsapp_alert(message):
+    """Sends priority tactical alerts via Twilio Enterprise WhatsApp API"""
     def send():
-        # ⚠️ Replace with your actual Bot Token and Chat ID
-        token = "8764061611:AAGaN4wGO7ORvW-0lQbX0zkAaIAtLr37M0w"
-        chat_id = "153250187" # <-- तुझा टेलिग्राम ID
-        url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-        try: 
-            requests.get(url, timeout=3)
-        except Exception as e: 
-            pass # Fail silently so the main surveillance thread doesn't crash
-            
-    threading.Thread(target=send, daemon=True).start()
-
-def save_evidence(frame, incident_type):
-    """Captures a high-res snapshot of the incident for post-event police auditing."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{EVIDENCE_DIR}/{incident_type}_{timestamp}.jpg"
-    cv2.imwrite(filename, frame)
-    return filename
-
-def log_threat(message, level="WARNING"):
-    """Smart Logging System - Maintains an active tactical feed on the dashboard."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    color = "#FF4444" if level == "CRITICAL" else "#FFB800" if level == "WARNING" else "#00FFCC"
-    
-    if 'threat_logs' not in st.session_state: 
-        st.session_state.threat_logs = []
+        # ⚠️ इथे तुझे Twilio डॅशबोर्डवरील डिटेल्स टाक
+        account_sid = 'ACf0ec2706c55ce3e04a3e4679d8919920'
+        auth_token = '28bf9a7b02484292b2bc76f903f97084'
         
-    log_html = f"<div class='log-box'><span style='color:{color}; font-weight:bold;'>[{timestamp}] {level}:</span> {message}</div>"
-    st.session_state.threat_logs.insert(0, log_html)
-    
-    # Keep only the latest 8 logs to prevent UI clutter
-    if len(st.session_state.threat_logs) > 8:
-        st.session_state.threat_logs.pop()
+        # Twilio Sandbox चा नंबर (हा सहसा +14155238886 असा असतो)
+        from_whatsapp_number = 'whatsapp:+14155238886' 
+        # तुझा स्वतःचा नंबर ज्यावर मेसेज हवाय (Country Code सोबत, उदा. +919876543210)
+        to_whatsapp_number = '724 983 6522' 
 
+        url = f"https://api.telegram.org/bot/.... नाही, आपण Twilio वापरतोय!"
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+        
+        data = {
+            'From': from_whatsapp_number,
+            'To': to_whatsapp_number,
+            'Body': f"🚨 *CROWD COMMAND ALERT*\n\n{message}"
+        }
+        
+        try:
+            response = requests.post(url, data=data, auth=HTTPBasicAuth(account_sid, auth_token), timeout=5)
+            print(f"🚀 WhatsApp Status: {response.status_code}")
+        except Exception as e:
+            print(f"❌ WhatsApp Error: {e}")
+
+    # थ्रेडमध्ये चालवा म्हणजे सिस्टिम अडकणार नाही
+    threading.Thread(target=send, daemon=True).start()
 # ==========================================
 # 🔊 3. LOCALIZED AUDIO PROTOCOL (MARATHI)
 # ==========================================
@@ -490,7 +520,7 @@ if st.session_state.get('run_state', False):
                     if (current_time - st.session_state.last_missing_alert) > 15:
                         log_msg = f"TARGET MATCHED ({int(score*100)}%). Directing team to sector."
                         log_threat(log_msg, "CRITICAL")
-                        send_telegram_alert(f"🚨 TARGET IDENTIFIED!\nCamera: Main Sector\nAccuracy: {int(score*100)}%")
+                        send_whatsapp_alert(f"🚨 TARGET IDENTIFIED!\nCamera: Main Sector\nAccuracy: {int(score*100)}%")
                         
                         if audio_mode: trigger_marathi_alert("missing")
                         
@@ -594,14 +624,14 @@ if st.session_state.get('run_state', False):
         if bh_alerts and (current_time - st.session_state.last_alert_time) > 10:
             dispatch_msg = f"PANIC BEHAVIOR DETECTED. Dispatching Quick Response Team."
             log_threat(dispatch_msg, "CRITICAL")
-            send_telegram_alert(f"URGENT: {dispatch_msg}")
+            send_whatsapp_alert(f"URGENT: {dispatch_msg}")
             if audio_mode: trigger_marathi_alert("running")
             st.session_state.last_alert_time = current_time
             
         elif count_people > threshold and (current_time - st.session_state.last_alert_time) > 25: 
             dispatch_msg = f"CAPACITY OVERLOAD ({count_people}/{threshold}). Halt inflow immediately."
             log_threat(dispatch_msg, "WARNING")
-            send_telegram_alert(f"⚠️ Crowd Warning: {dispatch_msg}")
+            send_whatsapp_alert(f"⚠️ Crowd Warning: {dispatch_msg}")
             if audio_mode: trigger_marathi_alert("overcrowded")
             st.session_state.last_alert_time = current_time
 
