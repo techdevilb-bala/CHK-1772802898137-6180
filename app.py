@@ -13,22 +13,20 @@ import streamlit as st
 EVIDENCE_DIR = "incident_logs"
 os.makedirs(EVIDENCE_DIR, exist_ok=True)
 
+import os
+import threading
+
 def send_whatsapp_alert(message):
-    """Sends priority tactical alerts via Twilio Enterprise WhatsApp API"""
+    """Hackathon Jugaad: Calling the working test file directly! 🔥"""
     def send():
-        # ⚠️ इथे तुझे Twilio डॅशबोर्डवरील डिटेल्स टाक
-        account_sid = 'ACf0ec2706c55ce3e04a3e4679d8919920'
-        auth_token = '28bf9a7b02484292b2bc76f903f97084'
-        from_whatsapp_number = 'whatsapp:+14155238886' 
-        to_whatsapp_number = 'whatsapp:+917249836522' 
-        
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-        data = {'From': from_whatsapp_number, 'To': to_whatsapp_number, 'Body': f"🚨 *CROWD COMMAND ALERT*\n\n{message}"}
         try:
-            requests.post(url, data=data, auth=HTTPBasicAuth(account_sid, auth_token), timeout=5)
+            # थेट तुझी चालणारी फाईल रन करेल
+            os.system("python test_wo.py") 
         except Exception as e:
             pass
+            
     threading.Thread(target=send, daemon=True).start()
+
 
 def save_evidence(frame, incident_type):
     """Captures a high-res snapshot of the incident."""
@@ -93,7 +91,7 @@ def send_whatsapp_alert(message):
         # Twilio Sandbox चा नंबर (हा सहसा +14155238886 असा असतो)
         from_whatsapp_number = 'whatsapp:+14155238886' 
         # तुझा स्वतःचा नंबर ज्यावर मेसेज हवाय (Country Code सोबत, उदा. +919876543210)
-        to_whatsapp_number = '724 983 6522' 
+        to_whatsapp_number = '+917249836522' 
 
         url = f"https://api.telegram.org/bot/.... नाही, आपण Twilio वापरतोय!"
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
@@ -628,7 +626,7 @@ if st.session_state.get('run_state', False):
             if audio_mode: trigger_marathi_alert("running")
             st.session_state.last_alert_time = current_time
             
-        elif count_people > threshold and (current_time - st.session_state.last_alert_time) > 25: 
+        elif count_people > threshold and (current_time - st.session_state.last_alert_time) > 10: 
             dispatch_msg = f"CAPACITY OVERLOAD ({count_people}/{threshold}). Halt inflow immediately."
             log_threat(dispatch_msg, "WARNING")
             send_whatsapp_alert(f"⚠️ Crowd Warning: {dispatch_msg}")
@@ -690,16 +688,17 @@ if not st.session_state.get('run_state', False):
             f.write("==================================================\n")
         return filename
 
-    # Generate Final Report Button
-    if st.sidebar.button("📄 Generate Police Audit Report", use_container_width=True):
+  # Generate Final Report Button
+    # ✅ इथे आपण 'key="gen_report_btn"' टाकला आहे
+    if st.sidebar.button("📄 Generate Police Audit Report", use_container_width=True, key="gen_report_btn"):
         report_file = create_safety_report(st.session_state.peak_count, st.session_state.alert_count)
         with open(report_file, "rb") as f:
             st.sidebar.download_button(
                 label="📥 Download Final TXT Report",
                 data=f,
                 file_name="Final_Safety_Audit.txt",
-                mime="text/plain"
+                mime="text/plain",
+                key="download_final_report_btn" # ✅ हा सर्वात महत्त्वाचा बदल आहे!
             )
         st.sidebar.success("✅ Report Generated!")
-        st.sidebar.success("Report Generated Successfully!")
 # --- END OF CODE ---
