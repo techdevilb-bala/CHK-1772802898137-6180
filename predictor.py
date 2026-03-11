@@ -1,56 +1,55 @@
 import pandas as pd
-import google.generativeai as genai
-import pandas as pd
 import numpy as np
 
-def get_crowd_prediction(history_df):
-    """Predicts future crowd trajectory based on current velocity."""
+def get_crowd_prediction(history_df, threshold):
+    """
+    Advanced Predictive Intelligence (V3.0)
+    Calculates Volumetric Velocity & Time-to-Critical-Mass.
+    """
     try:
-        if len(history_df) < 5:
-            return "Gathering baseline telemetry..."
+        # बेसलाईन तयार होण्यासाठी किमान १० डेटा पॉईंट्स लागतील
+        if len(history_df) < 10:
+            return "🛰️ CALIBRATING: Establishing baseline flow trajectory...", "INFO"
 
-        # शेवटच्या ५ डेटा पॉईंट्सवरून कल (Trend) ओळखणे
-        counts = history_df['Count'].values[-5:].astype(float)
+        # शेवटचे १० स्नॅपशॉट्स (Trajectory Analysis)
+        counts = history_df['Count'].values[-10:].astype(float)
         x = np.arange(len(counts))
         
-        # साधे Linear Regression (Slope काढणे)
-        slope, _ = np.polyfit(x, counts, 1)
+        # Polynomial Regression (Degree 1 for Trend, Degree 2 for Acceleration)
+        # आपण इथे साध्या Slope ऐवजी 'Momentum' मोजणार आहोत
+        poly = np.polyfit(x, counts, 1)
+        slope = poly[0] 
+        current_count = counts[-1]
         
-        if slope > 1.5:
-            return "HIGH INFLOW: Volumetric density increasing rapidly."
-        elif slope < -1.0:
-            return "STABLE: Crowd dispersion in progress."
+        # 🚀 Crowding Momentum Calculation (V/T)
+        occupancy_rate = (current_count / threshold) * 100
+
+        # १. जर गर्दी वेगाने वाढत असेल (SLOPE > 0.5)
+        if slope > 0.4:
+            remaining_cap = threshold - current_count
+            
+            if remaining_cap > 0:
+                # Time to Breach (Minutes)
+                time_to_breach = int(remaining_cap / (slope + 1e-6))
+                time_to_breach = max(1, time_to_breach)
+                
+                # Risk Level ठरवणे
+                risk = "HIGH" if occupancy_rate > 80 else "MODERATE"
+                
+                msg = f"⚠️ {risk} RISK: Density surge detected (+{round(slope, 1)} pax/unit). Est. limit breach in {time_to_breach} mins."
+                return msg, "WARNING"
+            else:
+                return "🚨 CRITICAL: Volumetric limit exceeded. Initiate immediate dispersal protocols.", "DANGER"
+        
+        # २. जर गर्दी कमी होत असेल
+        elif slope < -0.2:
+            return "📉 DISPERSING: Crowd momentum is negative. Flow is normalizing.", "SUCCESS"
+        
+        # ३. जर गर्दी स्थिर असेल
         else:
-            return "NOMINAL: Flow velocity is constant."
-    except Exception:
-        return "Analyzing flow patterns..."
+            if occupancy_rate > 90:
+                return "🟠 STAGNANT: High density but stable flow. Monitor for bottlenecking.", "WARNING"
+            return "✅ STABLE: Current trajectory indicates no immediate threshold risk.", "STABLE"
 
-# जर तुझ्याकडे Gemini API Key असेल तर इथे टाक (नसले तरीही सिस्टीम 'Offline Failsafe' लॉजिकवर चालेल)
-GEMINI_API_KEY = "इथे_तुझी_API_KEY_टाक" 
-
-def get_crowd_prediction(history_df):
-    if len(history_df) < 5:
-        return "Gathering Data..."
-
-    # Layer 2: Offline Edge Logic (जर इंटरनेट/API नसेल तर)
-    recent_counts = history_df['Count'].tolist()
-    growth_rate = recent_counts[-1] - recent_counts[0]
-    
-    offline_prediction = "Stable Flow 🟢"
-    if growth_rate > 15:
-        offline_prediction = "High Stampede Risk! (Surge) 🔴"
-    elif growth_rate > 5:
-        offline_prediction = "Moderate Risk (Crowd Growing) 🟡"
-
-    # Layer 1: Gemini Cloud Logic (AI Analysis)
-    try:
-        if GEMINI_API_KEY != "इथे_तुझी_API_KEY_टाक":
-            genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"Crowd counts over last few seconds: {recent_counts}. Based on this trend, predict stampede risk in 5 words."
-            response = model.generate_content(prompt)
-            return response.text.strip()
-    except:
-        pass # इंटरनेट नसेल तर Offline Edge Logic चालेल
-
-    return offline_prediction
+    except Exception as e:
+        return f"AI Logic Syncing... {str(e)}", "INFO"
