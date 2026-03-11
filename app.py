@@ -110,9 +110,9 @@ def send_whatsapp_alert(message):
 
     # थ्रेडमध्ये चालवा म्हणजे सिस्टिम अडकणार नाही
     threading.Thread(target=send, daemon=True).start()
-# ==========================================
+
 # 🔊 3. LOCALIZED AUDIO PROTOCOL (MARATHI)
-# ==========================================
+
 def trigger_marathi_alert(alert_type):
     """Triggers localized voice instructions to prevent panic and guide the crowd."""
     messages = {
@@ -272,12 +272,13 @@ def create_traffic_donut(total_in, total_out):
     fig.update_layout(title="🔄 TRAFFIC FLOW RATIO", paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), height=280, margin=dict(l=10, r=10, t=30, b=10), showlegend=False)
     return fig
 
-# ==========================================
+#
 # 💾 7. SYSTEM STATE INITIALIZATION
-# ==========================================
+
 # Variables stored in session state to persist across Streamlit re-runs
 if 'history' not in st.session_state: st.session_state.history = pd.DataFrame(columns=['Time', 'Count'])
 if 'peak_count' not in st.session_state: st.session_state.peak_count = 0
+if 'alert_count' not in st.session_state: st.session_state.alert_count = 0
 if 'tracker' not in st.session_state: st.session_state.tracker = {}
 if 'threat_logs' not in st.session_state: st.session_state.threat_logs = []
 if 'total_in' not in st.session_state: st.session_state.total_in = 0  
@@ -287,9 +288,9 @@ if 'last_alert_time' not in st.session_state: st.session_state.last_alert_time =
 if 'last_missing_alert' not in st.session_state: st.session_state.last_missing_alert = 0
 if 'heatmap_layer' not in st.session_state: st.session_state.heatmap_layer = np.zeros((480, 640), dtype=np.float32) 
 
-# ==========================================
+
 # ⚙️ 8. SIDEBAR - MASTER CONTROL PANEL
-# ==========================================
+#
 st.sidebar.markdown("## ⚙️ COMMAND SETTINGS")
 
 with st.sidebar.expander("📹 Camera Matrix (Feeds)", expanded=True):
@@ -674,7 +675,7 @@ if not st.session_state.get('run_state', False):
 
     if not st.session_state.history.empty:
         csv_data = st.session_state.history.to_csv(index=False).encode('utf-8')
-        st.sidebar.download_button("💾 Download Telemetry (CSV)", data=csv_data, file_name=f"crowd_telemetry_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True)
+        st.sidebar.download_button("💾 Download Telemetry (CSV)", data=csv_data, file_name=f"crowd_telemetry_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True, key="unique_csv_key")
 
     # ✅ FIX: इथेच फंक्शन बनवले आहे जेणेकरून Pylance एरर देणार नाही
     def create_safety_report(peak, alerts):
