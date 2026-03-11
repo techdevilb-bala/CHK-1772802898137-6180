@@ -658,5 +658,48 @@ if not st.session_state.get('run_state', False):
     if not st.session_state.history.empty:
         csv_data = st.session_state.history.to_csv(index=False).encode('utf-8')
         st.sidebar.download_button("💾 Download Telemetry (CSV)", data=csv_data, file_name=f"crowd_telemetry_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True)
+# ==========================================
+# 📄 11. POST-MISSION EXPORT & EVIDENCE
+# ==========================================
+if not st.session_state.get('run_state', False):
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📂 Command Archives")
+    
+    with st.sidebar.expander("📸 Incident Gallery Viewer", expanded=False):
+        logs = [f for f in os.listdir(EVIDENCE_DIR) if f.endswith('.jpg')] if os.path.exists(EVIDENCE_DIR) else []
+        if logs:
+            st.write(f"Found {len(logs)} high-res evidences.")
+            for log_file in sorted(logs, reverse=True)[:3]: 
+                st.image(f"{EVIDENCE_DIR}/{log_file}", caption=log_file)
+        else: 
+            st.write("Archive clean. No incidents.")
 
+    if not st.session_state.history.empty:
+        csv_data = st.session_state.history.to_csv(index=False).encode('utf-8')
+        st.sidebar.download_button("💾 Download Telemetry (CSV)", data=csv_data, file_name=f"crowd_telemetry_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True)
+
+    # ✅ FIX: इथेच फंक्शन बनवले आहे जेणेकरून Pylance एरर देणार नाही
+    def create_safety_report(peak, alerts):
+        filename = "Final_Safety_Audit.txt"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("=== 🛡️ SMART CROWD INTELLIGENCE SYSTEM AUDIT ===\n")
+            f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Peak Crowd Observed: {peak} persons\n")
+            f.write(f"Total Critical Alerts Issued: {alerts}\n")
+            f.write("Status: Surveillance Session Concluded Successfully.\n")
+            f.write("==================================================\n")
+        return filename
+
+    # Generate Final Report Button
+    if st.sidebar.button("📄 Generate Police Audit Report", use_container_width=True):
+        report_file = create_safety_report(st.session_state.peak_count, st.session_state.alert_count)
+        with open(report_file, "rb") as f:
+            st.sidebar.download_button(
+                label="📥 Download Final TXT Report",
+                data=f,
+                file_name="Final_Safety_Audit.txt",
+                mime="text/plain"
+            )
+        st.sidebar.success("✅ Report Generated!")
+        st.sidebar.success("Report Generated Successfully!")
 # --- END OF CODE ---
